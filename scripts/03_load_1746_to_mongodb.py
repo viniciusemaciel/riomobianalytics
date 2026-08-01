@@ -4,13 +4,26 @@ from pymongo import MongoClient
 from datetime import datetime
 from tqdm import tqdm
 import config
+import os
 import sys
+
+def load_bairros_lookup():
+    """Carrega o de-para id_bairro (codbnum) → nome do bairro.
+    Retorna dict vazio se o arquivo não existir — loader segue sem quebrar."""
+    path = config.BAIRROS_LOOKUP_FILE
+    if not os.path.exists(path):
+        print(f"Bairros lookup file not found at {path}; bairro will be empty")
+        return {}
+    df = pd.read_csv(path)
+    return dict(zip(df['codbnum'].astype(int), df['nome'].astype(str).str.strip()))
+
 
 class Reclamacoes1746Loader:
     def __init__(self):
         self.client = MongoClient(config.MONGO_URI)
         self.db = self.client[config.MONGO_DB]
         self.collection = self.db.reclamacoes_1746_raw
+        self.bairros_lookup = load_bairros_lookup()
 
     def detect_csv_format(self, df):
         if 'protocolo' in df.columns:
@@ -29,6 +42,37 @@ class Reclamacoes1746Loader:
                 rename_dict[old_col] = new_col
 
         mapped_df = mapped_df.rename(columns=rename_dict)
+
+        # Derivar 'servico' a partir de 'tipo' via curadoria (TIPO_TO_SERVICO).
+        # Tipos ausentes do mapa (Alvará, Estacionamento, etc.) são descartados
+        # por serem irrelevantes para segurança de paradas.
+        if 'tipo' in mapped_df.columns:
+            mapped_df['tipo'] = mapped_df['tipo'].astype(str).str.strip()
+            total_before = len(mapped_df)
+            mapped_df = mapped_df[mapped_df['tipo'].isin(config.TIPO_TO_SERVICO.keys())].copy()
+            dropped = total_before - len(mapped_df)
+            print(f"Filtered out {dropped} records with irrelevant 'tipo' "
+                  f"(kept {len(mapped_df)} relevant to bus stop safety)")
+            mapped_df['servico'] = mapped_df['tipo'].map(config.TIPO_TO_SERVICO)
+
+        # subtipo é mais informativo que qualquer descrição — usa como descricao
+        if 'subtipo' in mapped_df.columns and 'descricao' not in mapped_df.columns:
+            mapped_df['descricao'] = mapped_df['subtipo'].astype(str).str.strip()
+
+        # Resolve nome do bairro a partir de id_bairro via lookup (Limite_de_Bairros).
+        if 'id_bairro' in mapped_df.columns and self.bairros_lookup:
+            id_int = pd.to_numeric(mapped_df['id_bairro'], errors='coerce').astype('Int64')
+            mapped_bairros = id_int.map(self.bairros_lookup)
+
+            nan_after_convert = id_int.isna().sum()
+            missing_in_lookup = (id_int.notna() & mapped_bairros.isna()).sum()
+            if nan_after_convert or missing_in_lookup:
+                print(f"[warn] Bairros: {nan_after_convert} id_bairro inválidos (não-numéricos), "
+                      f"{missing_in_lookup} não encontrados no lookup — ficarão vazios.")
+
+            mapped_df['bairro'] = mapped_bairros.fillna('')
+            resolved = (mapped_df['bairro'] != '').sum()
+            print(f"Resolved bairro name for {resolved}/{len(mapped_df)} records")
 
         for col, default_value in config.CHAMADOS_V2_DEFAULTS.items():
             if col not in mapped_df.columns:
@@ -114,6 +158,15 @@ class Reclamacoes1746Loader:
                     'synced_to_neo4j': False,
                     'imported_at': datetime.now()
                 }
+
+                # stop_id e distância já vêm pré-calculados no CSV novo — persistir
+                # para o sync (04) usar direto em vez de refazer o spatial join.
+                stop_id = row.get('stop_id_mais_proximo')
+                if pd.notna(stop_id):
+                    doc['stop_id_mais_proximo'] = str(stop_id)
+                dist = row.get('distancia_metros')
+                if pd.notna(dist):
+                    doc['distancia_metros'] = float(dist)
 
                 doc['localizacao'] = {
                     'type': 'Point',

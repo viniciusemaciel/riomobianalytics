@@ -64,20 +64,24 @@ class GTFSLoader:
         with self.driver.session() as session:
             for _, row in tqdm(df.iterrows(), total=len(df), desc="Stops"):
                 session.run("""
-                    CREATE (:Stop {
-                        id: $id,
-                        name: $name,
-                        lat: $lat,
-                        lon: $lon,
-                        wheelchair_accessible: $wheelchair,
-                        risk_score: 0.0,
-                        total_reclamacoes: 0,
-                        reclamacoes_abertas: 0,
-                        betweenness_centrality: 0.0,
-                        pagerank: 0.0,
-                        community_id: 0,
-                        created_at: datetime()
-                    })
+                    MERGE (s:Stop {id: $id})
+                    ON CREATE SET
+                        s.name = $name,
+                        s.lat = $lat,
+                        s.lon = $lon,
+                        s.wheelchair_accessible = $wheelchair,
+                        s.risk_score = 0.0,
+                        s.total_reclamacoes = 0,
+                        s.reclamacoes_abertas = 0,
+                        s.betweenness_centrality = 0.0,
+                        s.pagerank = 0.0,
+                        s.community_id = 0,
+                        s.created_at = datetime()
+                    ON MATCH SET
+                        s.name = $name,
+                        s.lat = $lat,
+                        s.lon = $lon,
+                        s.wheelchair_accessible = $wheelchair
                 """,
                     id=str(row['stop_id']),
                     name=str(row['stop_name']),
@@ -93,16 +97,20 @@ class GTFSLoader:
         with self.driver.session() as session:
             for _, row in tqdm(df.iterrows(), total=len(df), desc="Routes"):
                 session.run("""
-                    CREATE (:Route {
-                        id: $id,
-                        short_name: $short_name,
-                        long_name: $long_name,
-                        type: $type,
-                        color: $color,
-                        avg_risk_score: 0.0,
-                        total_stops: 0,
-                        high_risk_stops: 0
-                    })
+                    MERGE (r:Route {id: $id})
+                    ON CREATE SET
+                        r.short_name = $short_name,
+                        r.long_name = $long_name,
+                        r.type = $type,
+                        r.color = $color,
+                        r.avg_risk_score = 0.0,
+                        r.total_stops = 0,
+                        r.high_risk_stops = 0
+                    ON MATCH SET
+                        r.short_name = $short_name,
+                        r.long_name = $long_name,
+                        r.type = $type,
+                        r.color = $color
                 """,
                     id=str(row['route_id']),
                     short_name=str(row['route_short_name']),
@@ -118,13 +126,17 @@ class GTFSLoader:
         with self.driver.session() as session:
             for _, row in tqdm(df.iterrows(), total=len(df), desc="Trips"):
                 session.run("""
-                    CREATE (:Trip {
-                        id: $id,
-                        route_id: $route_id,
-                        headsign: $headsign,
-                        direction: $direction,
-                        service_type: $service_type
-                    })
+                    MERGE (t:Trip {id: $id})
+                    ON CREATE SET
+                        t.route_id = $route_id,
+                        t.headsign = $headsign,
+                        t.direction = $direction,
+                        t.service_type = $service_type
+                    ON MATCH SET
+                        t.route_id = $route_id,
+                        t.headsign = $headsign,
+                        t.direction = $direction,
+                        t.service_type = $service_type
                 """,
                     id=str(row['trip_id']),
                     route_id=str(row['route_id']),
@@ -234,14 +246,16 @@ class GTFSLoader:
         with self.driver.session() as session:
             for n in neighborhoods:
                 session.run("""
-                    CREATE (:Neighborhood {
-                        name: $name,
-                        regiao: $regiao,
-                        populacao: $populacao,
-                        total_stops: 0,
-                        total_reclamacoes: 0,
-                        avg_risk_score: 0.0
-                    })
+                    MERGE (nb:Neighborhood {name: $name})
+                    ON CREATE SET
+                        nb.regiao = $regiao,
+                        nb.populacao = $populacao,
+                        nb.total_stops = 0,
+                        nb.total_reclamacoes = 0,
+                        nb.avg_risk_score = 0.0
+                    ON MATCH SET
+                        nb.regiao = $regiao,
+                        nb.populacao = $populacao
                 """, **n)
 
     def close(self):

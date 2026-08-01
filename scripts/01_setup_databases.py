@@ -26,6 +26,12 @@ def setup_mongodb():
 
 
 def setup_neo4j():
+    print("\n[!] setup_neo4j vai APAGAR todos os dados do Neo4j.")
+    confirm = input("    Digite RESET para confirmar: ").strip()
+    if confirm != "RESET":
+        print("    Cancelado.")
+        return False
+
     print("Configuring Neo4j...")
 
     try:

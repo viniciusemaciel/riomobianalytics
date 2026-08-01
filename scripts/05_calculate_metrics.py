@@ -15,10 +15,12 @@ class MetricsCalculator:
 
         with self.driver.session() as session:
             # Step 1: Calculate raw risk scores
+            # Considera todo o histórico de reclamações — o dataset atual
+            # (chamados_v2_com_stops_filtrado) já foi curado por relevância
+            # e cobre 2020-2025, então limitar por janela zeraria o score.
             result = session.run("""
                 MATCH (s:Stop)<-[a:AFFECTS]-(rec:Reclamacao)
                 WHERE rec.status IN ['Aberto', 'Em Atendimento']
-                  AND rec.data_abertura >= datetime() - duration({days: 30})
 
                 WITH s,
                      count(rec) AS total_reclamacoes,
@@ -159,12 +161,16 @@ class MetricsCalculator:
         print("Updating routes...")
 
         with self.driver.session() as session:
+            # avg_risk_score da rota é a média do risk_score_normalized (0-100)
+            # das paradas que ela atende — mesma escala usada no resto do app.
+            # high_risk_stops conta paradas classificadas 'Alto' (top 33% do ranking)
+            # em vez de threshold hardcoded, para bater com a classificação de paradas.
             result = session.run("""
                 MATCH (r:Route)-[:SERVES]->(s:Stop)
                 WITH r,
                      count(s) AS total_stops,
-                     avg(s.risk_score) AS avg_risk,
-                     count(CASE WHEN s.risk_score >= 0.6 THEN 1 END) AS high_risk
+                     avg(coalesce(s.risk_score_normalized, 0)) AS avg_risk,
+                     count(CASE WHEN s.risk_level = 'Alto' THEN 1 END) AS high_risk
 
                 SET r.total_stops = total_stops,
                     r.avg_risk_score = avg_risk,

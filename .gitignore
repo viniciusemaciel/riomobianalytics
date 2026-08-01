@@ -22,3 +22,6 @@ ENV/
 
 *.log
 .claude/
+MIGRACAO_DATASET.md
+RELATORIO_AUDITORIA.md
+.env.exemple

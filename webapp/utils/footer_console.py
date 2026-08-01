@@ -1,132 +1,95 @@
 import streamlit as st
 from .query_logger import QueryLogger
-import pandas as pd
+
 
 def render_query_console():
-    """Renderiza a console de queries no rodapé"""
+    """Console de queries no rodapé — colapsada por padrão para não poluir a página."""
 
-    st.divider()
-
-    # Header da console
-    col1, col2, col3 = st.columns([2, 1, 1])
-
-    with col1:
-        st.subheader("📊 Console de Queries")
-
-    with col2:
-        if st.button("🗑️ Limpar", key="clear_console"):
-            QueryLogger.clear_logs()
-            st.rerun()
-
-    with col3:
-        if st.button("🔄 Atualizar", key="refresh_console"):
-            st.rerun()
-
-    # Estatísticas
+    logs = QueryLogger.get_logs()
     stats = QueryLogger.get_stats()
 
-    col1, col2, col3, col4 = st.columns(4)
+    st.markdown("<div class='rm-console-footer'></div>", unsafe_allow_html=True)
 
-    with col1:
-        st.metric("Total de Queries", stats["total_queries"])
+    summary = (
+        f"Console de queries · {stats['total_queries']} total · "
+        f"Neo4j {stats['neo4j_queries']} · MongoDB {stats['mongo_queries']} · "
+        f"{stats['total_duration_ms']:.0f} ms"
+    )
 
-    with col2:
-        st.metric("Neo4j", stats["neo4j_queries"])
+    with st.expander(summary, expanded=False):
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button("Limpar histórico", key="clear_console", use_container_width=True):
+                QueryLogger.clear_logs()
+                st.rerun()
+        with col2:
+            if st.button("Atualizar", key="refresh_console", use_container_width=True):
+                st.rerun()
 
-    with col3:
-        st.metric("MongoDB", stats["mongo_queries"])
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Total", stats["total_queries"])
+        c2.metric("Neo4j", stats["neo4j_queries"])
+        c3.metric("MongoDB", stats["mongo_queries"])
+        c4.metric("Tempo (ms)", f"{stats['total_duration_ms']:.0f}")
 
-    with col4:
-        st.metric("Tempo Total (ms)", f"{stats['total_duration_ms']:.0f}")
+        if not logs:
+            st.caption("Nenhuma query executada ainda.")
+            return
 
-    # Logs detalhados
-    logs = QueryLogger.get_logs()
-
-    if logs:
-        # Tabs para diferentes tipos de query
-        tab1, tab2, tab3 = st.tabs(["Todas as Queries", "Neo4j", "MongoDB"])
-
-        with tab1:
-            display_logs(logs)
-
-        with tab2:
-            neo4j_logs = [l for l in logs if l["database"] == "Neo4j"]
-            display_logs(neo4j_logs)
-
-        with tab3:
-            mongo_logs = [l for l in logs if l["database"] == "MongoDB"]
-            display_logs(mongo_logs)
-    else:
-        st.info("Nenhuma query executada ainda. Use a aplicação para ver as queries aqui.")
+        tab_all, tab_neo, tab_mongo = st.tabs(["Todas", "Neo4j", "MongoDB"])
+        with tab_all:
+            _display_logs(logs)
+        with tab_neo:
+            _display_logs([l for l in logs if l.get("database") == "Neo4j"])
+        with tab_mongo:
+            _display_logs([l for l in logs if l.get("database") == "MongoDB"])
 
 
-def display_logs(logs):
-    """Exibe os logs em formato expandível"""
+def _display_logs(logs):
+    if not logs:
+        st.caption("Nada registrado nesta aba.")
+        return
 
-    for idx, log in enumerate(reversed(logs)):  # Mostrar mais recentes primeiro
+    for log in reversed(logs):
         timestamp = log.get("timestamp", "N/A")
         database = log.get("database", "N/A")
         duration = log.get("duration_ms", 0)
         status = log.get("status", "?")
 
-        # Título do expander
         if database == "Neo4j":
-            query_preview = log.get("query", "")[:60] + "..."
-            title = f"{status} [{timestamp}] Neo4j - {query_preview}"
+            query_preview = (log.get("query", "")[:60] + "...").replace("\n", " ")
+            title = f"{status} · {timestamp} · Neo4j · {query_preview}"
         else:
             operation = log.get("operation", "N/A")
-            query_preview = log.get("query", "")[:60]
-            title = f"{status} [{timestamp}] MongoDB {operation} - {query_preview}"
+            query_preview = str(log.get("query", ""))[:60]
+            title = f"{status} · {timestamp} · Mongo {operation} · {query_preview}"
 
         with st.expander(title, expanded=False):
-            col1, col2 = st.columns([1, 1])
+            c1, c2 = st.columns(2)
+            c1.write(f"**Database**: {database}")
+            c1.write(f"**Tempo**: {duration:.2f} ms")
+            c2.write(f"**Timestamp**: {timestamp}")
+            c2.write(f"**Status**: {status}")
 
-            with col1:
-                st.write(f"**Database**: {database}")
-                st.write(f"**Tempo**: {duration:.2f}ms")
-
-            with col2:
-                st.write(f"**Timestamp**: {timestamp}")
-                if database == "Neo4j":
-                    st.write(f"**Status**: {status}")
-
-            # Query/Operation completa
             if database == "Neo4j":
-                st.markdown("**Query Cypher:**")
+                st.markdown("**Query Cypher**")
                 st.code(log.get("query", ""), language="cypher")
-
                 if log.get("parameters"):
-                    st.markdown("**Parâmetros:**")
+                    st.markdown("**Parâmetros**")
                     st.json(log.get("parameters", {}))
             else:
-                st.markdown("**Operação:**")
+                st.markdown("**Operação**")
                 st.write(log.get("operation", "N/A"))
-                st.markdown("**Query:**")
+                st.markdown("**Query**")
                 st.code(str(log.get("query", "")), language="json")
-
-            # Divisor entre logs
-            st.divider()
 
 
 def render_minimal_console():
-    """Renderiza uma versão minimalista da console (inline)"""
-
+    """Versão inline minimalista (mantida por compatibilidade)."""
     stats = QueryLogger.get_stats()
-
-    # Pequena inline status bar
-    col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
-
-    with col1:
-        st.caption("📊 Query Stats")
-
-    with col2:
-        st.caption(f"Total: {stats['total_queries']}")
-
-    with col3:
-        st.caption(f"Neo4j: {stats['neo4j_queries']}")
-
-    with col4:
-        st.caption(f"MongoDB: {stats['mongo_queries']}")
-
-    with col5:
-        st.caption(f"Tempo: {stats['total_duration_ms']:.0f}ms")
+    cols = st.columns([2, 1, 1, 1, 1])
+    cols[0].caption("Query stats")
+    cols[1].caption(f"Total: {stats['total_queries']}")
+    cols[2].caption(f"Neo4j: {stats['neo4j_queries']}")
+    cols[3].caption(f"MongoDB: {stats['mongo_queries']}")
+    cols[4].caption(f"Tempo: {stats['total_duration_ms']:.0f} ms")

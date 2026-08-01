@@ -1,235 +1,143 @@
-# RioMobiAnalytics Web Application
+# RioMobiAnalytics — Web Application
 
-Interactive web interface for visualizing and managing RioMobiAnalytics transit risk data.
+Streamlit multi-page app for visualising and managing transit-risk data from
+the RioMobiAnalytics pipeline.
 
-## Features
+## Pages
 
-### 1. Interactive Map
-- View transit stops colored by risk level
-- Display complaint locations on map
-- Filter by risk level, category, and status
-- Interactive markers with detailed information
+| # | Nome                    | Arquivo                                | O que faz |
+|---|-------------------------|----------------------------------------|-----------|
+| — | Home                    | `Home.py`                              | Hero, KPIs do sistema, distribuição de risco, navegação. |
+| 1 | Mapa interativo         | `pages/01_Mapa_Interativo.py`          | Folium com paradas coloridas por risco + reclamações por categoria. |
+| 2 | Grafo de rede           | `pages/02_Grafo_de_Rede.py`            | Plotly + NetworkX; nós coloridos pelo `risk_score_normalized`. |
+| 3 | Gerenciamento de dados  | `pages/03_Gerenciamento_de_Dados.py`   | Upload GTFS/CSV, execução do pipeline ETL, status do sistema. |
+| 4 | Explorar detalhes       | `pages/04_Explorar_Detalhes.py`        | Busca dirigida por parada ou protocolo com view detalhada. |
+| 5 | Metodologia             | `pages/05_Metodologia.py`              | Como o risco é calculado, ponta a ponta. |
 
-### 2. Risk Dashboard
-- Comprehensive analytics with interactive charts
-- Stop risk analysis and distribution
-- Route metrics and comparisons
-- Complaint category breakdowns
-- Top critical stops identification
-
-### 3. Network Graph
-- Interactive graph visualization of transit network
-- Color nodes by risk, centrality, PageRank, or community
-- Multiple layout algorithms (Spring, Kamada-Kawai, Circular)
-- Network statistics and top connected nodes
-
-### 4. Data Management
-- Upload GTFS and complaint data files
-- Trigger ETL pipeline steps individually or complete pipeline
-- Monitor system status (MongoDB and Neo4j)
-- View data directory contents
-
-## Installation
-
-1. Install web dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-2. Ensure MongoDB and Neo4j are running:
-```bash
-# Check MongoDB
-mongosh
-
-# Check Neo4j
-cypher-shell
-```
-
-3. Load data using ETL pipeline:
-```bash
-./run_all.sh
-```
-
-## Running the Application
-
-### Quick Start
-
-```bash
-./run_webapp.sh
-```
-
-The application will be available at: http://localhost:8501
-
-### Manual Start
-
-```bash
-export PYTHONPATH="${PYTHONPATH}:$(pwd)"
-streamlit run webapp/app.py
-```
-
-### Custom Port
-
-```bash
-streamlit run webapp/app.py --server.port=8080
-```
-
-## Configuration
-
-The web app uses the same configuration as the ETL pipeline from `config.py`:
-
-- MongoDB connection settings
-- Neo4j connection settings
-- Risk calculation parameters
-- Data paths
-
-Ensure your `.env` file is properly configured before running.
-
-## Architecture
+## Estrutura
 
 ```
 webapp/
-├── app.py                      # Main entry point
-├── pages/                      # Multi-page app
-│   ├── 01_🗺️_Interactive_Map.py
-│   ├── 02_📊_Risk_Dashboard.py
-│   ├── 03_🕸️_Network_Graph.py
-│   └── 04_📤_Data_Management.py
-├── utils/                      # Utility modules
-│   ├── db_connections.py       # Database connections
-│   └── data_fetchers.py        # Data querying functions
-└── static/                     # Static assets
+├── Home.py                     # Entry point (aparece como "Home" no menu lateral)
+├── pages/                      # Multi-page (numeração define a ordem no menu)
+│   ├── 01_Mapa_Interativo.py
+│   ├── 02_Grafo_de_Rede.py
+│   ├── 03_Gerenciamento_de_Dados.py
+│   ├── 04_Explorar_Detalhes.py
+│   └── 05_Metodologia.py
+├── assets/
+│   ├── logo_mark.png           # Marca isolada (favicon é derivado dela)
+│   ├── logo_full.png           # Marca + wordmark (usado no sidebar)
+│   ├── favicon.png             # 64×64 gerado do logo_mark
+│   └── style.css               # Design system (Inter + paleta navy/coral/off-white)
+└── utils/
+    ├── theme.py                # apply_theme, render_hero, render_page_header, badges…
+    ├── db_connections.py       # Neo4j driver + Mongo client (cacheados)
+    ├── data_fetchers.py        # Queries Cypher/Mongo cacheadas (@st.cache_data ttl=300)
+    ├── footer_console.py       # Console de queries no rodapé (colapsada por padrão)
+    └── query_logger.py         # Logger em memória por sessão
 ```
 
-## Features by Page
+## Design system (`utils/theme.py`)
 
-### Interactive Map
-- **Folium** for interactive mapping
-- Geospatial visualization of risk levels
-- Complaint distribution maps
-- Filter and search capabilities
+Helpers reutilizáveis — chamar **`apply_theme()`** em toda página logo após
+`st.set_page_config`. Ele injeta o CSS e renderiza a logo no sidebar.
 
-### Risk Dashboard
-- **Plotly** for interactive charts
-- Risk score distributions
-- Correlation analysis (risk vs complaints, risk vs centrality)
-- Top critical stops and routes
-- Complaint category analysis
+| Helper                | Uso                                                     |
+|-----------------------|---------------------------------------------------------|
+| `apply_theme()`       | Injeta o CSS global e renderiza a logo no sidebar.      |
+| `render_hero(...)`    | Hero navy com gradiente (só na Home).                   |
+| `render_page_header(title, subtitle, icon)` | Header padrão das páginas internas. |
+| `render_kpi(label, value, hint)`            | Card de métrica com barra coral.    |
+| `render_risk_badge(level)`                  | Pill "Alto/Médio/Baixo" (retorna HTML). |
+| `render_risk_legend()`                      | Legenda vertical com bolinhas coloridas. |
+| `render_empty_state(title, msg)`            | Bloco vazio com borda tracejada.    |
+| `section_title(title, hint)`                | Subtítulo com hint em cinza claro.  |
+| `get_risk_color(level)`                     | Cor consistente com a legenda.      |
+| Constantes            | `BRAND`, `CATEGORY_COLORS`, `PAGE_ICON`.                |
 
-### Network Graph
-- **NetworkX** for graph operations
-- **Plotly** for interactive graph visualization
-- Multiple layout algorithms
-- Color coding by various metrics
-- Network statistics (density, degree centrality)
+Paleta:
+- **Navy** `#0B1F3A` — texto e sidebar
+- **Coral** `#F26A4B` — ações primárias e destaque
+- **Off-white** `#FAF7F2` — background
+- **Alto/Médio/Baixo** — `#D14B3A` / `#E9A23B` / `#3F9E6E`
 
-### Data Management
-- File upload functionality
-- ETL pipeline triggers
-- System status monitoring
-- Database connection testing
+Tipografia: **Inter** carregada do Google Fonts em `assets/style.css`.
 
-## Caching
+O tema também é declarado em `.streamlit/config.toml` — assim widgets padrão do
+Streamlit (`st.metric`, sliders, botões, tabs) já saem coerentes.
 
-The application uses Streamlit's caching to optimize performance:
+## Rodar
 
-- **Data caching**: Query results cached for 5 minutes (TTL=300)
-- **Resource caching**: Database connections cached and reused
-- Automatic cache invalidation on data updates
+Pré-requisito: MongoDB e Neo4j rodando (via `docker-compose up -d` na raiz) e
+`.env` configurado com as credenciais.
 
-To clear cache:
-- Press 'C' in the app, or
-- Use the hamburger menu → "Clear cache"
+```bash
+# a partir da raiz do repositório
+./run_webapp.sh
+# ou
+streamlit run webapp/Home.py --server.port=8501
+```
 
-## Performance Tips
+App em `http://localhost:8501`.
 
-1. **Network Graph**: Limit edges to 200-300 for better performance
-2. **Map**: Use filters to reduce the number of markers displayed
-3. **Data Management**: Run ETL steps during off-peak hours
-4. **Caching**: Refresh data every 5 minutes by reloading the page
+## Cache
+
+- `@st.cache_data(ttl=300)` nas funções de `data_fetchers.py` — resultados
+  ficam em cache por 5 minutos.
+- `@st.cache_resource` nos drivers de banco em `db_connections.py`.
+- Para forçar refresh: pressione **C** no app, ou hamburger menu → *Clear cache*.
+
+## Console de queries (rodapé)
+
+Cada página renderiza `render_query_console()` no fim — expander recolhido com
+todas as queries Cypher/Mongo executadas na sessão + latências. Útil pra debug
+sem poluir a página.
 
 ## Troubleshooting
 
-### Database Connection Errors
+**`Neo.ClientError.Security.Unauthorized`** — o `NEO4J_PASSWORD` do `.env` não
+bate com a senha do container. Verifique em `docker-compose.yml` (variável
+`NEO4J_AUTH`).
 
-Check if databases are running:
-```bash
-# MongoDB
-ps aux | grep mongod
+**`AuthenticationRateLimit`** — o Neo4j baniu temporariamente após várias
+tentativas com senha errada. Reinicie o container: `docker-compose restart neo4j`.
 
-# Neo4j
-ps aux | grep neo4j
-```
+**Página em branco / sidebar sem logo** — confira se `webapp/assets/logo_mark.png`
+e `logo_full.png` existem.
 
-Verify connection settings in `.env`
-
-### No Data Displayed
-
-1. Run the ETL pipeline first: `./run_all.sh`
-2. Check System Status page for data counts
-3. Verify data files exist in `data/` directory
-
-### Slow Performance
-
-1. Reduce the number of edges in Network Graph
-2. Use filters to limit data displayed on maps
-3. Check database query performance
-4. Ensure adequate system resources
-
-### Import Errors
-
-Ensure PYTHONPATH is set:
+**Import errors** — rode a partir da raiz do repo, ou:
 ```bash
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 ```
 
-Or use the provided launch script:
-```bash
-./run_webapp.sh
-```
+## Adicionando páginas novas
 
-## Development
+1. Crie `pages/NN_Nome_Da_Pagina.py` (`NN` = ordem no menu; **sem emojis** no
+   nome do arquivo — usamos ícones do design system).
+2. No topo:
+   ```python
+   from webapp.utils.theme import apply_theme, render_page_header, PAGE_ICON
+   from webapp.utils.footer_console import render_query_console
 
-### Adding New Pages
+   st.set_page_config(page_title="...", page_icon=PAGE_ICON, layout="wide")
+   apply_theme()
+   render_page_header("Título", "Subtítulo", icon="◉")
+   ```
+3. No fim: `render_query_console()`.
 
-1. Create a new file in `webapp/pages/` with format: `NN_emoji_Page_Name.py`
-2. Use the same imports and setup as existing pages
-3. Access database utilities from `webapp.utils`
+## Adicionando visualizações
 
-### Adding New Visualizations
+1. Adicione a função em `utils/data_fetchers.py` com `@st.cache_data(ttl=300)`.
+2. Retorne `pandas.DataFrame` sempre que possível.
+3. Para plots use **Plotly** — passe `paper_bgcolor="rgba(0,0,0,0)"` e cores
+   de `BRAND` pra manter consistência com o resto do app.
 
-1. Add data fetcher function in `webapp/utils/data_fetchers.py`
-2. Use `@st.cache_data(ttl=300)` decorator for caching
-3. Return pandas DataFrame for easy plotting
-4. Use Plotly for interactive charts
+## Stack
 
-### Modifying Database Queries
-
-Edit `webapp/utils/data_fetchers.py` to add or modify Neo4j Cypher queries or MongoDB aggregation pipelines.
-
-## Security Notes
-
-- The web app connects directly to MongoDB and Neo4j
-- Ensure databases are not exposed to untrusted networks
-- Use authentication for production deployments
-- Consider using a reverse proxy (nginx) for SSL/TLS
-
-## Production Deployment
-
-For production use:
-
-1. Use a production WSGI server
-2. Enable authentication
-3. Configure SSL/TLS
-4. Set up monitoring and logging
-5. Use environment-specific `.env` files
-6. Consider containerization with Docker
-
-## Technology Stack
-
-- **Streamlit**: Web framework
-- **Plotly**: Interactive visualizations
-- **Folium**: Interactive maps
-- **NetworkX**: Graph algorithms
-- **Pandas**: Data manipulation
-- **PyMongo**: MongoDB driver
-- **Neo4j Python Driver**: Neo4j connectivity
+- **Streamlit** — framework
+- **Plotly** — gráficos interativos
+- **Folium** + **streamlit-folium** — mapas
+- **NetworkX** — algoritmos de grafo
+- **Pandas** — manipulação
+- **PyMongo** + **neo4j** — drivers de banco

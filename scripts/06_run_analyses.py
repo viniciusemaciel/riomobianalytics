@@ -38,20 +38,24 @@ class GraphAnalyzer:
         print("Calculating centrality...")
 
         with self.driver.session() as session:
-            result = session.run("""
-                CALL gds.betweenness.write('transportNetwork', {
-                  writeProperty: 'betweenness_centrality'
-                })
-                YIELD centralityDistribution
+            try:
+                result = session.run("""
+                    CALL gds.betweenness.write('transportNetwork', {
+                      writeProperty: 'betweenness_centrality'
+                    })
+                    YIELD centralityDistribution
 
-                RETURN
-                  centralityDistribution.min AS min_centrality,
-                  centralityDistribution.max AS max_centrality,
-                  centralityDistribution.mean AS avg_centrality
-            """)
+                    RETURN
+                      centralityDistribution.min AS min_centrality,
+                      centralityDistribution.max AS max_centrality,
+                      centralityDistribution.mean AS avg_centrality
+                """)
 
-            record = result.single()
-            print(f"Avg: {record['avg_centrality']:.6f}, Max: {record['max_centrality']:.6f}")
+                record = result.single()
+                print(f"Avg: {record['avg_centrality']:.6f}, Max: {record['max_centrality']:.6f}")
+            except Exception as e:
+                print(f"[warn] Betweenness centrality falhou (bug conhecido do GDS 5.14): {e}. Prosseguindo sem essa métrica.")
+                return
 
             result = session.run("""
                 MATCH (s:Stop)

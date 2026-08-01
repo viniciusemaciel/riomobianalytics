@@ -16,7 +16,10 @@ def get_stops_with_risk():
     ORDER BY s.risk_score_normalized DESC
     """
     data = query_neo4j(query)
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    if "risk_level" in df.columns:
+        df["risk_level"] = df["risk_level"].replace({"Medio": "Médio"})
+    return df
 
 @st.cache_data(ttl=300)
 def get_routes_with_metrics():
@@ -52,23 +55,55 @@ def get_complaints_summary():
     return pd.DataFrame(results).rename(columns={"_id": "category"})
 
 @st.cache_data(ttl=300)
-def get_network_graph_data():
-    query = """
+def get_network_graph_data(limit: int = 500):
+    """Retorna as primeiras `limit` conexões CONNECTS_TO do banco.
+
+    É uma amostra "arbitrária" da rede (ordem definida pelo Neo4j), útil
+    para dar uma visão geral da topologia. Para focar em uma região
+    específica, use `get_network_around_stop`.
+    """
+    query = f"""
     MATCH (s1:Stop)-[c:CONNECTS_TO]->(s2:Stop)
     RETURN s1.id as source, s2.id as target, s1.name as source_name,
            s2.name as target_name, c.distance_meters as distance,
            c.risk_adjusted_cost as cost, s1.risk_score as source_risk,
            s2.risk_score as target_risk
-    LIMIT 500
+    LIMIT {int(limit)}
     """
     data = query_neo4j(query)
+    return pd.DataFrame(data)
+
+
+@st.cache_data(ttl=300)
+def get_network_around_stop(stop_id: str, max_edges: int = 500):
+    """Retorna arestas CONNECTS_TO acessíveis a partir de `stop_id` via BFS.
+
+    Faz uma travessia em largura no Neo4j até coletar até `max_edges` arestas
+    únicas. Útil para gerar um subgrafo conectado, centrado em uma parada
+    específica, em vez da amostragem "aleatória" de `get_network_graph_data`.
+    """
+    query = """
+    MATCH path = (start:Stop {id: $stop_id})-[:CONNECTS_TO*1..6]-(other:Stop)
+    WITH relationships(path) AS rels
+    UNWIND rels AS r
+    WITH DISTINCT r
+    LIMIT $max_edges
+    WITH startNode(r) AS s1, endNode(r) AS s2, r
+    RETURN s1.id AS source, s2.id AS target,
+           s1.name AS source_name, s2.name AS target_name,
+           r.distance_meters AS distance,
+           r.risk_adjusted_cost AS cost,
+           s1.risk_score AS source_risk,
+           s2.risk_score AS target_risk
+    """
+    data = query_neo4j(query, {"stop_id": stop_id, "max_edges": int(max_edges)})
     return pd.DataFrame(data)
 
 @st.cache_data(ttl=300)
 def get_system_stats():
     query = """
     MATCH (s:Stop)
-    WHERE s.risk_score IS NOT NULL
+    WHERE s.risk_score IS NOT NULL AND s.risk_score_normalized IS NOT NULL
     WITH count(s) as total_stops,
          avg(s.risk_score_normalized) as avg_risk_normalized,
          percentileCont(s.risk_score_normalized, 0.67) as p67,
@@ -96,7 +131,10 @@ def get_top_critical_stops(limit=10):
     LIMIT {limit}
     """
     data = query_neo4j(query)
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    if "risk_level" in df.columns:
+        df["risk_level"] = df["risk_level"].replace({"Medio": "Médio"})
+    return df
 
 @st.cache_data(ttl=300)
 def get_complaints_by_location():
@@ -105,7 +143,7 @@ def get_complaints_by_location():
 
     complaints = list(db.reclamacoes_1746_raw.find(
         {},
-        {"protocolo": 1, "lat": 1, "lon": 1, "servico": 1, "status": 1, "peso": 1, "criticidade": 1}
+        {"protocolo": 1, "lat": 1, "lon": 1, "servico": 1, "bairro": 1, "_id": 0}
     ).limit(1000))
 
     duration_ms = (time.time() - start_time) * 1000
@@ -127,15 +165,19 @@ def get_stop_details(stop_id):
       s.lat as lat,
       s.lon as lon,
       s.risk_score as risk_score,
-      s.risk_level as risk_level,
-      s.total_reclamacoes as total_complaints,
-      s.reclamacoes_abertas as open_complaints,
+      COALESCE(s.risk_score_normalized, 0) as risk_score_normalized,
+      COALESCE(s.risk_level, 'Sem risco') as risk_level,
+      COALESCE(s.total_reclamacoes, 0) as total_complaints,
+      COALESCE(s.reclamacoes_abertas, 0) as open_complaints,
       s.wheelchair_accessible as wheelchair_accessible,
       collect(DISTINCT r.short_name) as routes,
       count(DISTINCT rec) as active_complaints
     """
     data = query_neo4j(query, {"stop_id": stop_id})
-    return data[0] if data else None
+    result = data[0] if data else None
+    if result and result.get("risk_level") == "Medio":
+        result["risk_level"] = "Médio"
+    return result
 
 @st.cache_data(ttl=300)
 def get_stop_complaints(stop_id):
@@ -204,12 +246,10 @@ def get_nearby_complaints(lat, lon, radius_meters=500):
             "protocolo": 1,
             "data_abertura": 1,
             "servico": 1,
-            "status": 1,
-            "peso": 1,
-            "criticidade": 1,
             "bairro": 1,
             "lat": 1,
-            "lon": 1
+            "lon": 1,
+            "_id": 0
         }
     ).limit(50))
 
@@ -249,4 +289,7 @@ def get_connected_stops(stop_id, hops=2):
     LIMIT 50
     """
     data = query_neo4j(query, {"stop_id": stop_id})
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    if "risk_level" in df.columns:
+        df["risk_level"] = df["risk_level"].replace({"Medio": "Médio"})
+    return df

@@ -26,4 +26,4 @@ echo ""
 
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 
-streamlit run webapp/app.py --server.port=$PORT --server.address=0.0.0.0
+streamlit run webapp/Home.py --server.port=$PORT --server.address=0.0.0.0

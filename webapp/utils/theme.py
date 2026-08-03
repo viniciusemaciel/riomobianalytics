@@ -16,6 +16,7 @@ from pathlib import Path
 import html
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 LOGO_MARK = ASSETS_DIR / "logo_mark.png"
@@ -61,14 +62,147 @@ def apply_theme() -> None:
         css = STYLE_CSS.read_text(encoding="utf-8")
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
-    if LOGO_FULL.exists():
-        with st.sidebar:
-            st.image(str(LOGO_FULL), use_container_width=True)
-            st.markdown(
-                "<div style='height:1px;background:rgba(255,255,255,0.12);"
-                "margin:12px 0 8px 0;'></div>",
-                unsafe_allow_html=True,
-            )
+    logo_uri = _asset_data_uri(str(LOGO_FULL))
+    if logo_uri:
+        # Injeta a logo no topo do sidebar + botão custom "abrir sidebar".
+        # Roda dentro de um iframe (components.html) mas manipula o
+        # window.parent.document. O clique é sintetizado com pointerdown+
+        # mouseup+click porque botões React do Streamlit não respondem a
+        # HTMLElement.click() puro em algumas versões.
+        components.html(
+            f"""
+            <script>
+            (function() {{
+                const LOGO_ID = 'rm-sidebar-logo-node';
+                const TOGGLE_ID = 'rm-sidebar-toggle';
+                const LOGO_URI = "{logo_uri}";
+                const doc = window.parent.document;
+                const win = window.parent;
+
+                function findNativeToggle() {{
+                    // Streamlit 1.60 usa dois botões distintos:
+                    //   • stExpandSidebarButton — no toolbar do topo, aparece
+                    //     APENAS quando o sidebar está colapsado.
+                    //   • stSidebarCollapseButton — dentro do sidebar, aparece
+                    //     apenas quando o sidebar está aberto.
+                    // Como o nosso botão custom só é visível na condição
+                    // "sidebar colapsado", queremos sempre o Expand.
+                    const selectors = [
+                        'button[data-testid="stExpandSidebarButton"]',
+                        '[data-testid="stExpandSidebarButton"]',
+                        '[data-testid="stExpandSidebarButton"] button',
+                        // Fallbacks pra outras versões:
+                        '[data-testid="stSidebarCollapsedControl"] button',
+                        '[data-testid="collapsedControl"] button',
+                    ];
+                    for (const sel of selectors) {{
+                        const nodes = doc.querySelectorAll(sel);
+                        for (const n of nodes) {{
+                            if (n && n.id !== TOGGLE_ID) return n;
+                        }}
+                    }}
+                    return null;
+                }}
+
+                function fireRealClick(el) {{
+                    // Botões React do Streamlit escutam pointerdown+mouseup, e
+                    // ignoram HTMLElement.click() em alguns casos. Disparamos
+                    // uma sequência realista de eventos usando as classes
+                    // Event do window.parent (mesma origem que o alvo).
+                    const rect = el.getBoundingClientRect();
+                    const opts = {{
+                        bubbles: true, cancelable: true, view: win,
+                        clientX: rect.left + rect.width / 2,
+                        clientY: rect.top + rect.height / 2,
+                        button: 0,
+                    }};
+                    try {{ el.dispatchEvent(new win.PointerEvent('pointerdown', opts)); }} catch(e) {{}}
+                    el.dispatchEvent(new win.MouseEvent('mousedown', opts));
+                    try {{ el.dispatchEvent(new win.PointerEvent('pointerup', opts)); }} catch(e) {{}}
+                    el.dispatchEvent(new win.MouseEvent('mouseup', opts));
+                    el.dispatchEvent(new win.MouseEvent('click', opts));
+                    el.click();
+                }}
+
+                function openSidebar() {{
+                    const native = findNativeToggle();
+                    if (native) {{ fireRealClick(native); return true; }}
+                    return false;
+                }}
+
+                function ensureToggleButton() {{
+                    let btn = doc.getElementById(TOGGLE_ID);
+                    if (!btn) {{
+                        btn = doc.createElement('button');
+                        btn.id = TOGGLE_ID;
+                        btn.type = 'button';
+                        btn.setAttribute('aria-label', 'Abrir menu lateral');
+                        btn.innerHTML = '&raquo;';
+                        btn.addEventListener('click', (e) => {{
+                            e.preventDefault();
+                            e.stopPropagation();
+                            openSidebar();
+                        }});
+                        doc.body.appendChild(btn);
+                    }}
+                    return btn;
+                }}
+
+                function updateToggleVisibility() {{
+                    const btn = ensureToggleButton();
+                    const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
+                    let collapsed = true;
+                    if (sidebar) {{
+                        const rect = sidebar.getBoundingClientRect();
+                        collapsed = rect.width < 40;
+                    }}
+                    btn.classList.toggle('rm-visible', collapsed);
+                }}
+
+                function injectLogo() {{
+                    const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
+                    if (!sidebar) return;
+                    ['transform', 'visibility', 'width'].forEach(k => {{
+                        if (sidebar.style[k]) sidebar.style[k] = '';
+                    }});
+                    const existing = doc.getElementById(LOGO_ID);
+                    if (existing && existing.parentElement !== sidebar) {{
+                        existing.remove();
+                    }}
+                    let card = doc.getElementById(LOGO_ID);
+                    if (!card) {{
+                        card = doc.createElement('div');
+                        card.id = LOGO_ID;
+                        card.className = 'rm-sidebar-logo';
+                        const img = doc.createElement('img');
+                        img.src = LOGO_URI;
+                        img.alt = 'RioMobiAnalytics';
+                        card.appendChild(img);
+                    }}
+                    if (sidebar.firstChild !== card) {{
+                        sidebar.insertBefore(card, sidebar.firstChild);
+                    }}
+                }}
+
+                function tick() {{
+                    injectLogo();
+                    updateToggleVisibility();
+                }}
+
+                if (!win.__rmSidebarObserver) {{
+                    const obs = new win.MutationObserver(tick);
+                    obs.observe(doc.body, {{childList: true, subtree: true}});
+                    win.__rmSidebarObserver = obs;
+                }}
+                if (!win.__rmSidebarInterval) {{
+                    win.__rmSidebarInterval = win.setInterval(updateToggleVisibility, 500);
+                }}
+                tick();
+            }})();
+            </script>
+            """,
+            height=0,
+        )
 
 
 def render_page_header(title: str, subtitle: str = "", icon: str = "") -> None:

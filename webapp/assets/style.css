@@ -90,6 +90,61 @@ section[data-testid="stSidebar"] [aria-current="page"] {
     font-weight: 600 !important;
 }
 
+/* Sidebar logo — cartão off-white inserido via JS como primeiro filho
+   do <section data-testid="stSidebar">. O JS que faz isso vive em
+   webapp/utils/theme.py::apply_theme. */
+.rm-sidebar-logo {
+    margin: 10px 4px 10px 4px;
+    background: var(--rm-cream);
+    border-radius: 14px;
+    padding: 2px 2px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25),
+                inset 0 1px 0 rgba(255,255,255,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 130px;
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
+}
+/* Botão custom de abrir sidebar — injetado via JS em theme.py.
+   Fica sempre no canto superior esquerdo, visível apenas quando o sidebar
+   está colapsado (o JS toggla a classe .rm-visible baseado no estado). */
+#rm-sidebar-toggle {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 999999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: var(--rm-navy);
+    color: #FFFFFF;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 18px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+    transition: background 120ms, transform 120ms;
+}
+#rm-sidebar-toggle:hover {
+    background: var(--rm-coral);
+    transform: scale(1.05);
+}
+#rm-sidebar-toggle.rm-visible {
+    display: inline-flex;
+}
+.rm-sidebar-logo img {
+    width: 100%;
+    height: auto;
+    max-height: 126px;
+    object-fit: contain;
+    display: block;
+}
+
 /* ---------- Page header (custom hero) ---------- */
 .rm-page-header {
     display: flex;

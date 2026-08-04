@@ -55,27 +55,72 @@ with tab1:
                 stop_details = get_stop_details(stop_id)
                 if stop_details:
                     st.divider()
-                    section_title("Visão geral")
+                    section_title("Visão geral do risco")
 
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        st.markdown("**Nível de risco**")
+                    total_score = (stop_details.get("risk_score_normalized") or 0)
+                    atual_score = (stop_details.get("risk_score_atual") or 0) * 100
+                    tiroteio_score = (stop_details.get("risk_score_tiroteio") or 0) * 100
+
+                    # Card de decomposição
+                    dc1, dc2, dc3 = st.columns(3)
+                    with dc1:
+                        st.metric(
+                            "Risco Total",
+                            f"{total_score:.1f} / 100",
+                        )
                         st.markdown(
                             render_risk_badge(stop_details.get("risk_level")),
                             unsafe_allow_html=True,
                         )
-                    with c2:
-                        risk_norm = stop_details.get("risk_score_normalized") or 0
-                        st.metric("Pontuação de risco", f"{risk_norm:.1f} / 100")
+                    with dc2:
+                        st.metric(
+                            "Risco por Chamados",
+                            f"{atual_score:.0f} / 100",
+                            help="Agregação dos chamados 1746 abertos próximos à parada.",
+                        )
+                    with dc3:
+                        st.metric(
+                            "Risco de Tiroteio (ML)",
+                            f"{tiroteio_score:.0f}%",
+                            help="Probabilidade de tiroteio num raio de 500m — modelo XGBoost.",
+                        )
+                        shootout_level = (
+                            "Alto" if tiroteio_score >= 70
+                            else "Médio-Alto" if tiroteio_score >= 40
+                            else "Baixo"
+                        )
+                        st.markdown(
+                            render_risk_badge(shootout_level),
+                            unsafe_allow_html=True,
+                        )
+
+                    st.caption(
+                        f"Fórmula: (0.6 × {atual_score:.0f} + 1.4 × {tiroteio_score:.0f}%) / 2 = {total_score:.1f}"
+                    )
+
+                    st.markdown("**Nível de risco**")
+                    st.markdown(
+                        render_risk_badge(stop_details.get("risk_level")),
+                        unsafe_allow_html=True,
+                    )
 
                     with st.expander("Como esses valores são calculados?"):
                         st.markdown(
                             """
-                            1. Cada reclamação recebe um **peso** conforme sua categoria (Segurança=1.5, Iluminação=0.6, etc.).
-                            2. A parada acumula a soma dos pesos das reclamações que a afetam (`risk_sum`).
-                            3. O `risk_score` bruto é `risk_sum / (risk_sum + 10)` — saturação para [0, 1).
-                            4. O `risk_score_normalized` reescala para [0, 100] via min-max sobre todas as paradas.
-                            5. O `Nível de risco` classifica por ranking: top 33% = Alto, meio 33% = Médio, resto = Baixo.
+                            **Risco Total** combina duas fontes independentes:
+
+                            1. **Risco por Chamados** — cada reclamação 1746 recebe um peso
+                               conforme sua categoria (Segurança=1.5, Iluminação=0.6, etc.).
+                               A parada acumula a soma: `risk_sum / (risk_sum + 10)`.
+
+                            2. **Risco de Tiroteio** — probabilidade prevista por um modelo
+                               XGBoost treinado com dados do Fogo Cruzado e chamados 1746.
+                               AUC 0.71, 16 features (localização, rede, lags de 3/6/12 meses).
+
+                            **Fórmula final**: `(0.6 × atual + 1.4 × tiroteio) / 2`
+
+                            O risco total é normalizado 0–100 e classificado em tercis
+                            (Alto / Médio / Baixo).
 
                             Detalhes completos na página **Metodologia**.
                             """

@@ -11,7 +11,7 @@ NC='\033[0m'
 run_script() {
     script_name=$1
     echo "Running: $script_name"
-    PYTHONPATH=/Users/queiroz.thiago/projects/pos/riomobianalytics python3 scripts/$script_name
+    PYTHONPATH="$(cd "$(dirname "$0")" && pwd)" python3 scripts/$script_name
 
     if [ $? -eq 0 ]; then
         echo "${GREEN}$script_name complete${NC}"
@@ -30,6 +30,7 @@ run_script "03_load_1746_to_mongodb.py" || exit 1
 run_script "04_sync_1746_to_neo4j.py" || exit 1
 run_script "05_calculate_metrics.py" || exit 1
 run_script "06_run_analyses.py" || exit 1
+run_script "07_predict_risk.py" || exit 1
 
 echo "=============================================="
 echo "${GREEN}Full load complete${NC}"

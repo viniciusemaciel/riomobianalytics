@@ -15,8 +15,9 @@ help:
 	@echo "  make load-gtfs     - Load GTFS transit data into Neo4j"
 	@echo "  make load-1746     - Load 1746 complaint data into MongoDB"
 	@echo "  make sync          - Sync complaints from MongoDB to Neo4j"
-	@echo "  make metrics       - Calculate risk scores and metrics"
+	@echo "  make metrics       - Calculate risk scores from complaints (reativo)"
 	@echo "  make analysis      - Run graph analytics (centrality, communities)"
+	@echo "  make predict       - Run ML model and compute combined risk score"
 	@echo "  make run-all       - Run complete ETL pipeline (all steps)"
 	@echo ""
 	@echo "Queries & Analysis:"
@@ -62,15 +63,20 @@ sync:
 	@echo "🔄 Syncing complaints to Neo4j..."
 	PYTHONPATH=$(PYTHONPATH) $(PYTHON) $(SCRIPTS_DIR)/04_sync_1746_to_neo4j.py
 
-# Calculate metrics
+# Calculate metrics (reativo)
 metrics:
-	@echo "📊 Calculating metrics..."
+	@echo "📊 Calculating metrics (reativo)..."
 	PYTHONPATH=$(PYTHONPATH) $(PYTHON) $(SCRIPTS_DIR)/05_calculate_metrics.py
 
 # Run graph analytics
 analysis:
 	@echo "🕸️  Running graph analytics..."
 	PYTHONPATH=$(PYTHONPATH) $(PYTHON) $(SCRIPTS_DIR)/06_run_analyses.py
+
+# Predict risk with ML model + combine scores
+predict:
+	@echo "🤖 Running ML risk prediction + combined score..."
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) $(SCRIPTS_DIR)/07_predict_risk.py
 
 # Run complete pipeline
 run-all:
@@ -141,10 +147,10 @@ reset: clean
 	$(MAKE) reset-sync
 
 # Quick sync and query (common workflow)
-sync-query: sync metrics query
+sync-query: sync metrics predict query
 
 # Reload all data
-reload: setup load-gtfs load-1746 sync metrics
+reload: setup load-gtfs load-1746 sync metrics analysis predict
 
 # Development targets
 dev-setup: install setup

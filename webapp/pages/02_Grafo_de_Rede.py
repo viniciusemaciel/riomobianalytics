@@ -37,9 +37,10 @@ with st.expander("O que este grafo mostra?", expanded=False):
         A **cor do nó** é o `risk_level` (Alto / Médio / Baixo) atribuído por
         ranking, o mesmo mostrado no Mapa Interativo e na tabela abaixo:
 
-        - 🔴 **Alto** — top 33% do ranking de risco entre paradas com reclamação
-        - 🟡 **Médio** — 33% intermediário
-        - 🟢 **Baixo** — 33% inferior, incluindo paradas sem reclamação
+        - 🔴 **Alto** — 4º quartil do range de risco total combinado (0-100)
+        - 🟡 **Médio-Alto** — 3º quartil
+        - 🟢 **Médio-Baixo** — 2º quartil
+        - 🔵 **Baixo** — 1º quartil
 
         **Duas formas de gerar o subgrafo:**
 
@@ -172,15 +173,17 @@ try:
             # Cor do nó vem do risk_level (categórico), NÃO do risk_score.
             # Isso garante consistência com o Mapa Interativo e a tabela abaixo.
             LEVEL_COLOR = {
-                "Alto":      BRAND["high"],
-                "Médio":     BRAND["med"],
-                "Medio":     BRAND["med"],
-                "Baixo":     BRAND["low"],
-                "Sem risco": "#8A93A3",
+                "Alto":         BRAND["high"],
+                "Médio-Alto":   BRAND["med_high"],
+                "Medio-Alto":   BRAND["med_high"],
+                "Médio-Baixo":  BRAND["med_low"],
+                "Medio-Baixo":  BRAND["med_low"],
+                "Baixo":        BRAND["low"],
+                "Sem risco":    "#8A93A3",
             }
 
             node_x, node_y, node_text, node_marker_color, node_size = [], [], [], [], []
-            level_count = {"Alto": 0, "Médio": 0, "Baixo": 0, "Sem risco": 0}
+            level_count = {"Alto": 0, "Médio-Alto": 0, "Médio-Baixo": 0, "Baixo": 0, "Sem risco": 0}
             for node in G.nodes():
                 x, y = pos[node]
                 node_x.append(x)
@@ -191,6 +194,10 @@ try:
                 level = raw_level or "Sem risco"
                 if level == "Medio":
                     level = "Médio"
+                elif level == "Medio-Alto":
+                    level = "Médio-Alto"
+                elif level == "Medio-Baixo":
+                    level = "Médio-Baixo"
                 level_count[level] = level_count.get(level, 0) + 1
                 is_origin = (node == selected_stop_id)
                 node_text.append(
@@ -227,7 +234,7 @@ try:
                                 line=dict(width=1.4, color=BRAND["navy"])),
                     name=lvl, showlegend=True,
                 )
-                for lvl in ["Alto", "Médio", "Baixo"]
+                for lvl in ["Alto", "Médio-Alto", "Médio-Baixo", "Baixo"]
             ]
 
             fig = go.Figure(
@@ -237,7 +244,8 @@ try:
                         text=(
                             f"<b>{len(G.nodes())}</b> nós · <b>{len(G.edges())}</b> arestas · "
                             f"<span style='color:{BRAND['high']}'>{level_count['Alto']} Alto</span> · "
-                            f"<span style='color:{BRAND['med']}'>{level_count['Médio']} Médio</span> · "
+                            f"<span style='color:{BRAND['med_high']}'>{level_count['Médio-Alto']} Médio-Alto</span> · "
+                            f"<span style='color:{BRAND['med_low']}'>{level_count['Médio-Baixo']} Médio-Baixo</span> · "
                             f"<span style='color:{BRAND['low']}'>{level_count['Baixo']} Baixo</span>"
                         ),
                         font=dict(size=13, color="#E4E7EE"),

@@ -19,8 +19,9 @@
     --rm-line: #E4E7EE;
     --rm-line-strong: #C9CFDA;
     --rm-high: #D14B3A;
-    --rm-med: #E9A23B;
-    --rm-low: #3F9E6E;
+    --rm-med-high: #E9A23B;
+    --rm-med-low: #3F9E6E;
+    --rm-low: #3B78C7;
     --rm-radius: 14px;
     --rm-radius-sm: 8px;
     --rm-shadow: 0 1px 2px rgba(11,31,58,0.04), 0 4px 12px rgba(11,31,58,0.06);
@@ -406,10 +407,11 @@ section[data-testid="stSidebar"] [aria-current="page"] {
     font-weight: 600;
     letter-spacing: 0.02em;
 }
-.rm-badge--high { background: #FCE1DC; color: var(--rm-high); }
-.rm-badge--med  { background: #FBEAC7; color: var(--rm-med);  }
-.rm-badge--low  { background: #D9EFE2; color: var(--rm-low);  }
-.rm-badge--none { background: var(--rm-navy-fog); color: var(--rm-ink-3); }
+.rm-badge--high     { background: #FCE1DC; color: var(--rm-high); }
+.rm-badge--med-high { background: #FBEAC7; color: var(--rm-med-high); }
+.rm-badge--med-low  { background: #D9EFE2; color: var(--rm-med-low);  }
+.rm-badge--low      { background: #DCE8F5; color: var(--rm-low);  }
+.rm-badge--none     { background: var(--rm-navy-fog); color: var(--rm-ink-3); }
 
 /* ---------- Legend chips ---------- */
 .rm-legend {
@@ -486,11 +488,49 @@ section[data-testid="stSidebar"] [aria-current="page"] {
     border: 1px solid var(--rm-line-strong) !important;
     background: var(--rm-white) !important;
 }
+.stSelectbox div[data-baseweb="select"] {
+    background-color: var(--rm-white) !important;
+}
+.stSelectbox div,
+.stSelectbox span,
+.stSelectbox input,
+.stMultiSelect div,
+.stMultiSelect span,
+.stMultiSelect input {
+    color: var(--rm-navy) !important;
+    opacity: 1 !important;
+    -webkit-text-fill-color: var(--rm-navy) !important;
+}
 .stSelectbox label, .stMultiSelect label, .stTextInput label,
 .stNumberInput label, .stSlider label, .stCheckbox label {
     color: var(--rm-navy) !important;
     font-weight: 500 !important;
     font-size: 0.88rem !important;
+}
+
+/* ---------- Radio & Checkbox Containers ---------- */
+div[data-testid="stRadio"] [role="radiogroup"] {
+    background-color: var(--rm-white) !important;
+    border: 1px solid var(--rm-line-strong) !important;
+    border-radius: var(--rm-radius-sm) !important;
+    padding: 8px 12px !important;
+}
+div[data-testid="stCheckbox"] > label {
+    background-color: var(--rm-white) !important;
+    border: 1px solid var(--rm-line-strong) !important;
+    border-radius: var(--rm-radius-sm) !important;
+    padding: 8px 12px !important;
+    width: 100% !important;
+}
+
+/* ---------- File Uploader ---------- */
+[data-testid="stFileUploader"] section {
+    background-color: var(--rm-white) !important;
+    border: 1px dashed var(--rm-line-strong) !important;
+    border-radius: var(--rm-radius-sm) !important;
+}
+[data-testid="stFileUploader"] section * {
+    color: var(--rm-navy) !important;
 }
 
 /* ---------- Alerts (info/warning/success/error) ---------- */

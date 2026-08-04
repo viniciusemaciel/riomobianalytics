@@ -41,9 +41,10 @@ BRAND = {
     "navy_soft": "#1B3457",
     "coral": "#F26A4B",
     "cream": "#FAF7F2",
-    "high": "#D14B3A",
-    "med": "#E9A23B",
-    "low": "#3F9E6E",
+    "high": "#D14B3A",       # Alto — vermelho
+    "med_high": "#E9A23B",   # Médio-Alto — âmbar
+    "med_low": "#3F9E6E",    # Médio-Baixo — verde
+    "low": "#3B78C7",        # Baixo — azul
 }
 
 CATEGORY_COLORS = {
@@ -283,31 +284,37 @@ def render_risk_badge(level: str | None) -> str:
     if not level:
         return "<span class='rm-badge rm-badge--none'>Sem risco</span>"
     mapping = {
-        "Alto":  "rm-badge--high",
-        "Medio": "rm-badge--med",
-        "Médio": "rm-badge--med",
-        "Baixo": "rm-badge--low",
+        "Alto":         "rm-badge--high",
+        "Médio-Alto":   "rm-badge--med-high",
+        "Medio-Alto":   "rm-badge--med-high",
+        "Médio-Baixo":  "rm-badge--med-low",
+        "Medio-Baixo":  "rm-badge--med-low",
+        "Baixo":        "rm-badge--low",
     }
     cls = mapping.get(level, "rm-badge--none")
     return f"<span class='rm-badge {cls}'>{html.escape(str(level))}</span>"
 
 
 def render_risk_legend() -> None:
-    """Vertical legend for the risk map (colored dots + labels)."""
+    """Vertical legend for the risk map (4 níveis por quartis do range)."""
     st.markdown(
         f"""
         <div class='rm-legend'>
             <div class='rm-legend__row'>
                 <span class='rm-legend__dot' style='background:{BRAND["high"]}'></span>
-                <span><strong>Alto</strong> — top 33%</span>
+                <span><strong>Alto</strong> — 4º quartil do range</span>
             </div>
             <div class='rm-legend__row'>
-                <span class='rm-legend__dot' style='background:{BRAND["med"]}'></span>
-                <span><strong>Médio</strong> — 33% intermediário</span>
+                <span class='rm-legend__dot' style='background:{BRAND["med_high"]}'></span>
+                <span><strong>Médio-Alto</strong> — 3º quartil</span>
+            </div>
+            <div class='rm-legend__row'>
+                <span class='rm-legend__dot' style='background:{BRAND["med_low"]}'></span>
+                <span><strong>Médio-Baixo</strong> — 2º quartil</span>
             </div>
             <div class='rm-legend__row'>
                 <span class='rm-legend__dot' style='background:{BRAND["low"]}'></span>
-                <span><strong>Baixo</strong> — 33% inferior</span>
+                <span><strong>Baixo</strong> — 1º quartil</span>
             </div>
         </div>
         """,
@@ -361,19 +368,15 @@ def section_title(title: str, hint: str = "") -> None:
 
 
 def get_risk_color(risk_level: str | None) -> str:
-    """Cor derivada do risk_level (Alto/Médio/Baixo).
-
-    Usar risk_level em vez do score bruto garante que a cor no mapa bata
-    com o filtro de nível e com a legenda: como o nível é atribuído por
-    ranking (top 33% = Alto), duas paradas com o mesmo score podem ter
-    níveis diferentes, e o mapa deve refletir o nível, não o número.
-    """
+    """Cor derivada do risk_level (Alto / Médio-Alto / Médio-Baixo / Baixo)."""
     if not risk_level:
         return "#8A93A3"
     mapping = {
-        "Alto":  BRAND["high"],
-        "Medio": BRAND["med"],
-        "Médio": BRAND["med"],
-        "Baixo": BRAND["low"],
+        "Alto":         BRAND["high"],
+        "Médio-Alto":   BRAND["med_high"],
+        "Medio-Alto":   BRAND["med_high"],
+        "Médio-Baixo":  BRAND["med_low"],
+        "Medio-Baixo":  BRAND["med_low"],
+        "Baixo":        BRAND["low"],
     }
     return mapping.get(risk_level, "#8A93A3")

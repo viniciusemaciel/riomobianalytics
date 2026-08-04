@@ -27,14 +27,14 @@ apply_theme()
 
 render_page_header(
     "Mapa interativo",
-    "Paradas coloridas por nível de risco e distribuição geográfica das reclamações",
+    "Paradas coloridas por nível de risco total e distribuição geográfica das reclamações",
     icon="◉",
 )
 
 tab1, tab2 = st.tabs(["Mapa de risco de paradas", "Mapa de reclamações"])
 
 with tab1:
-    section_title("Paradas de trânsito por nível de risco")
+    section_title("Paradas de trânsito por nível de risco total")
 
     try:
         stops_df = get_stops_with_risk()
@@ -53,29 +53,48 @@ with tab1:
                 st.markdown("**Filtros**")
 
                 risk_filter = st.selectbox(
-                    "Nível de risco",
-                    ["Todos", "Alto", "Médio", "Baixo"],
+                    "Nível de risco total",
+                    ["Todos", "Alto", "Médio-Alto", "Médio-Baixo", "Baixo"],
                     index=0,
                 )
+
+                # Filtro de foco em tiroteios (ML)
+                tiroteio_filter = st.checkbox(
+                    "Foco em tiroteios (ML)",
+                    value=False,
+                    help="Exibe apenas paradas com probabilidade de tiroteio ≥ 50% "
+                         "(modelo XGBoost). Use para identificar zonas de alerta "
+                         "mesmo quando não há chamados abertos.",
+                )
+
                 min_complaints = st.slider(
                     "Mín. de reclamações",
                     0,
                     int(stops_df["total_complaints"].max()) if "total_complaints" in stops_df else 10,
                     0,
                 )
+
                 if risk_filter != "Todos":
                     stops_df = stops_df[stops_df["risk_level"] == risk_filter]
+                if tiroteio_filter:
+                    stops_df = stops_df[stops_df["risk_score_tiroteio"] >= 0.5]
                 stops_df = stops_df[stops_df["total_complaints"] >= min_complaints]
 
                 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
                 m_left, m_right = st.columns(2)
                 m_left.metric("Paradas exibidas", len(stops_df))
                 m_right.metric(
-                    "Risco médio",
+                    "Risco total médio",
                     f"{stops_df['risk_score_normalized'].mean():.1f}"
                     if not stops_df.empty else "—",
-                    help="Média da pontuação de risco (0-100) das paradas exibidas após filtros.",
+                    help="Média da pontuação de risco total (0-100) das paradas exibidas após filtros.",
                 )
+
+                if not stops_df.empty and tiroteio_filter:
+                    st.caption(
+                        f"Destas, {(stops_df['risk_score_tiroteio'] >= 0.7).sum()} "
+                        f"têm probabilidade de tiroteio ≥ 70%"
+                    )
 
                 st.markdown("**Legenda**")
                 render_risk_legend()
@@ -87,15 +106,25 @@ with tab1:
 
                 for _, stop in stops_df.iterrows():
                     color = get_risk_color(stop["risk_level"])
+                    tiroteio_pct = stop.get("risk_score_tiroteio", 0) * 100
+                    atual_pct = stop.get("risk_score_atual", 0) * 100
+
+                    popup_html = f"""
+                        <b>{stop['name']}</b><br>
+                        <hr style='margin:4px 0'>
+                        <b>Risco Total:</b> {stop['risk_score_normalized']:.1f}/100
+                        ({stop['risk_level']})<br>
+                        <span style='color:#888;font-size:0.85em'>
+                          └ Chamados: {atual_pct:.0f}/100
+                          &nbsp;|&nbsp; Tiroteio (ML): {tiroteio_pct:.0f}%
+                        </span><br>
+                        Reclamações: {int(stop['total_complaints'])}
+                    """
+
                     folium.CircleMarker(
                         location=[stop["lat"], stop["lon"]],
                         radius=6,
-                        popup=folium.Popup(f"""
-                            <b>{stop['name']}</b><br>
-                            Pontuação de risco: {stop['risk_score_normalized']:.1f}/100<br>
-                            Nível: {stop['risk_level']}<br>
-                            Reclamações: {int(stop['total_complaints'])}
-                        """, max_width=220),
+                        popup=folium.Popup(popup_html, max_width=260),
                         color=color,
                         fill=True,
                         fillColor=color,
@@ -107,27 +136,33 @@ with tab1:
                 st_folium(m, width=None, height=600)
 
             st.divider()
-            section_title("Top 10 paradas com maior risco")
+            section_title("Top 10 paradas com maior risco total")
 
             top_stops = stops_df.nlargest(10, "risk_score_normalized")[
-                ["name", "risk_score_normalized", "risk_level", "total_complaints", "id"]
+                ["name", "risk_score_normalized", "risk_level",
+                 "risk_score_atual", "risk_score_tiroteio",
+                 "total_complaints", "id"]
             ]
 
-            hcols = st.columns([3, 1, 1, 1, 1])
+            hcols = st.columns([2.5, 1, 1, 1, 1, 1, 1])
             hcols[0].markdown("**Parada**")
-            hcols[1].markdown("**Risco (0-100)**")
+            hcols[1].markdown("**Total**")
             hcols[2].markdown("**Nível**")
-            hcols[3].markdown("**Reclamações**")
-            hcols[4].markdown("**Ação**")
+            hcols[3].markdown("**Chamados**")
+            hcols[4].markdown("**Tiroteio**")
+            hcols[5].markdown("**Recl.**")
+            hcols[6].markdown("**Ação**")
 
             for _, stop in top_stops.iterrows():
-                cols = st.columns([3, 1, 1, 1, 1])
+                cols = st.columns([2.5, 1, 1, 1, 1, 1, 1])
                 cols[0].write(stop["name"])
                 cols[1].write(f"{stop['risk_score_normalized']:.1f}")
                 cols[2].markdown(render_risk_badge(stop["risk_level"]),
                                  unsafe_allow_html=True)
-                cols[3].write(f"{int(stop['total_complaints'] or 0)}")
-                if cols[4].button("Ver", key=f"btn_{stop['id']}",
+                cols[3].write(f"{(stop.get('risk_score_atual', 0) or 0) * 100:.0f}")
+                cols[4].write(f"{(stop.get('risk_score_tiroteio', 0) or 0) * 100:.0f}%")
+                cols[5].write(f"{int(stop['total_complaints'] or 0)}")
+                if cols[6].button("Ver", key=f"btn_{stop['id']}",
                                   use_container_width=True):
                     st.session_state.selected_stop_id = stop["id"]
                     st.rerun()
@@ -140,6 +175,55 @@ with tab1:
                 try:
                     stop_details = get_stop_details(stop_id)
                     if stop_details:
+                        # --- Card de decomposição dos 3 scores ---
+                        st.markdown("#### Composição do risco")
+
+                        total_score = (stop_details.get("risk_score_normalized") or 0)
+                        atual_score = (stop_details.get("risk_score_atual") or 0) * 100
+                        tiroteio_score = (stop_details.get("risk_score_tiroteio") or 0) * 100
+
+                        dc1, dc2, dc3 = st.columns(3)
+                        with dc1:
+                            st.metric(
+                                "Risco Total",
+                                f"{total_score:.1f} / 100",
+                            )
+                            st.markdown(
+                                render_risk_badge(stop_details.get("risk_level")),
+                                unsafe_allow_html=True,
+                            )
+                        with dc2:
+                            st.metric(
+                                "Risco por Chamados",
+                                f"{atual_score:.0f} / 100",
+                                help="Agregação dos chamados 1746 abertos próximos à parada.",
+                            )
+                        with dc3:
+                            st.metric(
+                                "Risco de Tiroteio (ML)",
+                                f"{tiroteio_score:.0f}%",
+                                help="Probabilidade de tiroteio num raio de 500m — modelo XGBoost.",
+                            )
+                            shootout_level = (
+                                "Alto" if tiroteio_score >= 70
+                                else "Médio-Alto" if tiroteio_score >= 40
+                                else "Baixo"
+                            )
+                            st.markdown(
+                                render_risk_badge(shootout_level),
+                                unsafe_allow_html=True,
+                            )
+
+                        # Barra visual de proporção
+                        bar_atual = atual_score / 100
+                        bar_tiroteio = tiroteio_score / 100
+                        bar_total = total_score / 100
+                        st.caption(
+                            f"Fórmula: (0.6 × {atual_score:.0f} + 1.4 × {tiroteio_score:.0f}%) / 2 = {total_score:.1f}"
+                        )
+
+                        st.divider()
+
                         c1, c2 = st.columns(2)
                         with c1:
                             st.metric(
@@ -147,10 +231,8 @@ with tab1:
                                 stop_details.get("risk_level") or "Sem risco",
                             )
                         with c2:
-                            risk_norm = stop_details.get("risk_score_normalized") or 0
-                            st.metric("Pontuação de risco", f"{risk_norm:.1f} / 100")
-
-                        st.write(f"**Reclamações totais**: {stop_details.get('total_complaints') or 0}")
+                            st.metric("Reclamações totais",
+                                      stop_details.get("total_complaints") or 0)
 
                         routes = stop_details.get("routes", [])
                         if routes:

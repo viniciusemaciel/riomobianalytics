@@ -5,7 +5,13 @@ numpy>=1.26.0
 geopy==2.4.1
 googlemaps==4.10.0
 python-dotenv==1.0.0
+python-dateutil>=2.8.0
 tqdm==4.66.1
+
+# ML — risco preditivo (07_predict_risk.py)
+xgboost>=2.0.0
+scikit-learn>=1.3.0
+joblib>=1.3.0
 
 streamlit>=1.28.0
 plotly>=5.17.0

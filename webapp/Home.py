@@ -25,8 +25,8 @@ render_hero(
     title_html="<em>Rio</em>MobiAnalytics",
     subtitle=(
         "Plataforma de análise de risco de trânsito no Rio de Janeiro — "
-        "integra a rede GTFS de ônibus com reclamações do 1746 para "
-        "identificar paradas críticas e priorizar intervenções."
+        "integra a rede GTFS de ônibus com reclamações do 1746 e um modelo "
+        "preditivo de tiroteios para identificar paradas críticas."
     ),
     eyebrow="Pós-graduação em Ciência de Dados",
 )
@@ -60,55 +60,74 @@ try:
 
     avg_risk = stats.get("avg_risk") or 0
     high_risk = stats.get("high_risk_stops", 0)
+    high_tiroteio = stats.get("high_tiroteio_stops", 0)
 
-    c4, c5 = st.columns(2)
+    c4, c5, c6 = st.columns(3)
     with c4:
         render_kpi(
             "Pontuação média do sistema",
             f"{avg_risk:.1f} / 100",
-            "média das paradas com ≥1 reclamação, na escala 0-100",
+            "média do risco total normalizado (0–100)",
         )
     with c5:
         render_kpi(
-            "Paradas de alto risco",
+            "Paradas de alto risco total",
             f"{high_risk:,}".replace(",", "."),
-            "aproximadamente 1/3 superior do ranking — paradas com ≥1 reclamação",
+            "tercil superior do ranking combinado",
+        )
+    with c6:
+        render_kpi(
+            "Alto risco de tiroteio (ML)",
+            f"{high_tiroteio:,}".replace(",", "."),
+            "prob. de tiroteio ≥ 50% — modelo XGBoost",
         )
 
     with st.expander("Como esses números são calculados?"):
         st.markdown(
             """
-            - **Pontuação média do sistema** — média do `risk_score_normalized` (0–100)
-              de todas as paradas com risco > 0.
-            - **Paradas de alto risco** — paradas classificadas como `Alto`, i.e.
-              aproximadamente 1/3 superior do ranking — paradas com ≥1 reclamação.
+            **Risco Total** (métrica principal) combina duas fontes:
 
-            Fórmula completa (peso por categoria → soma → saturação → normalização
-            → ranking) na página **Metodologia**.
+            1. **Risco por Chamados** — agregação dos chamados 1746 abertos
+               próximos à parada (Segurança, Iluminação, etc.), com peso por
+               categoria e fórmula de saturação: `risk_sum / (risk_sum + 10)`.
+
+            2. **Risco de Tiroteio** — probabilidade prevista por um modelo
+               XGBoost treinado com histórico de tiroteios (Fogo Cruzado) e
+               chamados 1746. AUC 0.71, 16 features (geografia, rede, lags).
+
+            **Fórmula final**: `(0,6 × atual + 1,4 × tiroteio) / 2`
+
+            O resultado é normalizado 0–100 e classificado por **quartis do
+            range de valores**: divide-se o intervalo [min, max] em 4 faixas
+            e cada parada recebe o nível conforme a faixa em que cai
+            (Baixo / Médio-Baixo / Médio-Alto / Alto). Detalhes na
+            página **Metodologia**.
             """
         )
 
-    # ---------------- Distribuição de risco (Fase 2 finalization) ----------------
+    # ---------------- Distribuição de risco ----------------
     st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
     section_title(
-        "Distribuição de risco",
-        "quantas paradas em cada nível — classificação por ranking",
+        "Distribuição de risco total",
+        "quantas paradas em cada nível — classificação por quartis do range",
     )
 
     try:
         stops_df = get_stops_with_risk()
         if not stops_df.empty and stops_df["risk_level"].notna().any():
+            level_order = ["Baixo", "Médio-Baixo", "Médio-Alto", "Alto"]
+            # Inverte a ordem pra que Alto fique no topo do gráfico horizontal
             level_counts = (
                 stops_df["risk_level"]
                 .dropna()
-                .replace({"Medio": "Médio"})
                 .value_counts()
-                .reindex(["Alto", "Médio", "Baixo"], fill_value=0)
+                .reindex(level_order, fill_value=0)
             )
             color_map = {
-                "Alto":  BRAND["high"],
-                "Médio": BRAND["med"],
-                "Baixo": BRAND["low"],
+                "Alto":         BRAND["high"],
+                "Médio-Alto":   BRAND["med_high"],
+                "Médio-Baixo":  BRAND["med_low"],
+                "Baixo":        BRAND["low"],
             }
 
             chart_col, legend_col = st.columns([3, 1])
@@ -127,7 +146,7 @@ try:
                     )
                 )
                 fig.update_layout(
-                    height=240,
+                    height=280,
                     margin=dict(l=10, r=40, t=10, b=10),
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
@@ -147,17 +166,15 @@ try:
 
             with legend_col:
                 total = int(level_counts.sum())
-                pct_alto  = (level_counts["Alto"]  / total * 100) if total else 0
-                pct_medio = (level_counts["Médio"] / total * 100) if total else 0
-                pct_baixo = (level_counts["Baixo"] / total * 100) if total else 0
+                pcts = {l: (level_counts[l] / total * 100) if total else 0 for l in level_order}
 
                 def _block(label: str, pct: float, color: str) -> str:
                     return (
-                        f"<div style='margin-bottom:12px;'>"
+                        f"<div style='margin-bottom:10px;'>"
                         f"  <div style='font-size:0.72rem;text-transform:uppercase;"
                         f"              letter-spacing:0.08em;color:#8A93A3;"
                         f"              font-weight:600;margin-bottom:2px;'>{label}</div>"
-                        f"  <div style='font-size:1.35rem;font-weight:700;"
+                        f"  <div style='font-size:1.25rem;font-weight:700;"
                         f"              color:{color};line-height:1.1;'>{pct:.1f}%</div>"
                         f"</div>"
                     )
@@ -170,10 +187,11 @@ try:
                                   font-weight:600;margin-bottom:2px;'>Paradas classificadas</div>
                       <div style='font-size:1.35rem;font-weight:700;
                                   color:{BRAND["navy"]};line-height:1.1;
-                                  margin-bottom:16px;'>{total:,}</div>
-                      {_block("% em Alto",  pct_alto,  BRAND["high"])}
-                      {_block("% em Médio", pct_medio, BRAND["med"])}
-                      {_block("% em Baixo", pct_baixo, BRAND["low"])}
+                                  margin-bottom:14px;'>{total:,}</div>
+                      {_block("% em Alto",         pcts["Alto"],         BRAND["high"])}
+                      {_block("% em Médio-Alto",   pcts["Médio-Alto"],   BRAND["med_high"])}
+                      {_block("% em Médio-Baixo",  pcts["Médio-Baixo"],  BRAND["med_low"])}
+                      {_block("% em Baixo",        pcts["Baixo"],        BRAND["low"])}
                     </div>
                     """.replace(",", "."),
                     unsafe_allow_html=True,
@@ -185,14 +203,15 @@ try:
 
     # ---------------- Nav cards ----------------
     st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
-    section_title("Explorar", "cinco visões sobre o mesmo dataset")
+    section_title("Explorar", "seis visões sobre o mesmo dataset")
 
     nav_items = [
-        ("◉", "Mapa interativo",       "Paradas coloridas por nível de risco e distribuição geográfica das reclamações do 1746.", "pages/01_Mapa_Interativo.py"),
-        ("◈", "Grafo de rede",         "Topologia da rede de trânsito com nós coloridos pelo risco de cada parada.",              "pages/02_Grafo_de_Rede.py"),
+        ("◉", "Mapa interativo",       "Paradas coloridas por nível de risco total e distribuição geográfica das reclamações do 1746.", "pages/01_Mapa_Interativo.py"),
+        ("◈", "Grafo de rede",         "Topologia da rede de trânsito com nós coloridos pelo risco total de cada parada.",              "pages/02_Grafo_de_Rede.py"),
         ("↑", "Gerenciamento de dados", "Upload de arquivos GTFS/CSV e execução do pipeline ETL passo a passo.",                   "pages/03_Gerenciamento_de_Dados.py"),
         ("⌕", "Explorar detalhes",     "Busca dirigida por parada ou protocolo com visão detalhada de vínculos.",                  "pages/04_Explorar_Detalhes.py"),
-        ("∫", "Metodologia",           "Como o risco de cada parada e rota é calculado, ponta a ponta.",                            "pages/05_Metodologia.py"),
+        ("∫", "Metodologia",           "Como o risco total de cada parada é calculado — chamados, modelo preditivo e fórmula combinada.", "pages/05_Metodologia.py"),
+        ("⟐", "Modelo preditivo",      "Playground interativo do XGBoost — inspecione features, simule cenários e entenda as predições.", "pages/06_Modelo_Preditivo.py"),
     ]
 
     top_row = st.columns(3)
@@ -222,6 +241,7 @@ try:
 
             - **MongoDB** — dados brutos das reclamações do 1746 com indexação geoespacial.
             - **Neo4j** — banco de grafo para a rede de trânsito e o relacionamento parada ↔ reclamação.
+            - **XGBoost** — modelo preditivo de tiroteios (AUC 0.71), artefatos em `artifacts/`.
             - **Streamlit + Folium + Plotly** — camada de visualização.
 
             **Cache**

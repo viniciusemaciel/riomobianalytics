@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import sys
 from pymongo import MongoClient
 from neo4j import GraphDatabase
@@ -27,10 +28,17 @@ def setup_mongodb():
 
 def setup_neo4j():
     print("\n[!] setup_neo4j vai APAGAR todos os dados do Neo4j.")
-    confirm = input("    Digite RESET para confirmar: ").strip()
-    if confirm != "RESET":
-        print("    Cancelado.")
-        return False
+    if os.environ.get("FORCE_RESET") == "true":
+        print("    FORCE_RESET=true → confirmado automaticamente.")
+    else:
+        try:
+            confirm = input("    Digite RESET para confirmar: ").strip()
+            if confirm != "RESET":
+                print("    Cancelado.")
+                return False
+        except EOFError:
+            print("    Sem terminal interativo. Defina FORCE_RESET=true no ambiente.")
+            return False
 
     print("Configuring Neo4j...")
 

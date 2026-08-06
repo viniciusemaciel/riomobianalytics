@@ -28,7 +28,7 @@ class GraphAnalyzer:
                   'Stop',
                   'CONNECTS_TO',
                   {
-                    nodeProperties: ['risk_score', 'lat', 'lon'],
+                    nodeProperties: ['risk_score_total', 'risk_score_atual', 'lat', 'lon'],
                     relationshipProperties: ['distance_meters', 'risk_adjusted_cost']
                   }
                 )
@@ -63,13 +63,13 @@ class GraphAnalyzer:
                 RETURN
                   s.name AS parada,
                   s.betweenness_centrality AS centralidade,
-                  s.risk_score AS risco,
+                  s.risk_score_total AS risco,
                   CASE
-                    WHEN s.betweenness_centrality > 0.05 AND s.risk_score > 0.6
+                    WHEN s.betweenness_centrality > 0.05 AND s.risk_score_total > 0.6
                     THEN 'CRITICO'
                     WHEN s.betweenness_centrality > 0.05
                     THEN 'Estruturalmente Critico'
-                    WHEN s.risk_score > 0.6
+                    WHEN s.risk_score_total > 0.6
                     THEN 'Alto Risco'
                     ELSE 'Normal'
                   END AS classificacao
@@ -108,8 +108,8 @@ class GraphAnalyzer:
                 WITH s.community_id AS community,
                      collect(s.name) AS paradas,
                      count(s) AS tamanho,
-                     avg(s.risk_score) AS risco_medio,
-                     max(s.risk_score) AS risco_maximo
+                     avg(s.risk_score_total) AS risco_medio,
+                     max(s.risk_score_total) AS risco_maximo
 
                 RETURN
                   community,
@@ -152,7 +152,7 @@ class GraphAnalyzer:
                 RETURN
                   s.name AS parada,
                   s.pagerank AS importancia,
-                  s.risk_score AS risco
+                  s.risk_score_total AS risco
                 ORDER BY s.pagerank DESC
                 LIMIT 10
             """)
@@ -201,8 +201,8 @@ class GraphAnalyzer:
             result = session.run("""
                 MATCH (s:Stop)
                 WITH count(s) AS total_stops,
-                     avg(s.risk_score) AS avg_risk,
-                     count(CASE WHEN s.risk_score >= 0.6 THEN 1 END) AS high_risk_count
+                     avg(s.risk_score_total) AS avg_risk,
+                     count(CASE WHEN s.risk_score_total >= 0.6 THEN 1 END) AS high_risk_count
 
                 MATCH (r:Route)
                 WITH total_stops, avg_risk, high_risk_count, count(r) AS total_routes
@@ -216,6 +216,11 @@ class GraphAnalyzer:
             """)
 
             stats = result.single()
+
+            if stats is None:
+                print("\n⚠️  Nenhuma estatística disponível (banco pode estar vazio)")
+                print("=" * 60)
+                return
 
             print(f"\nStops: {stats['total_stops']:,}")
             print(f"Routes: {stats['total_routes']:,}")

@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Variáveis de ambiente padrão (sobrescrevíveis no compose)
+ENV PYTHONPATH=/app
 ENV MONGO_URI=mongodb://admin:riomobianalytics2024@mongodb:27017/
 ENV NEO4J_URI=bolt://neo4j:7687
 ENV NEO4J_USER=neo4j

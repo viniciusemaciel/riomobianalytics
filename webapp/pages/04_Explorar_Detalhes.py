@@ -37,7 +37,7 @@ with tab1:
     if stops_df.empty:
         render_empty_state(
             "Sem dados de paradas",
-            "Execute o pipeline ETL para popular o banco.",
+            "Banco sem dados disponíveis.",
         )
     else:
         selected_stop_name = st.selectbox(

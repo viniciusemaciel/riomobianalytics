@@ -24,6 +24,9 @@ import numpy as np
 import pandas as pd
 from neo4j import GraphDatabase
 
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))  # raiz do repo (config.py)
 import config
 
 # ---------------------------------------------------------------------------
@@ -47,10 +50,10 @@ class RiskPredictor:
     def load_artifacts(self):
         """Carrega modelo XGBoost, StandardScaler e metadata."""
         print("Carregando artefatos do modelo…")
-        self.model = joblib.load("artifacts/xgb_model.joblib")
-        self.scaler = joblib.load("artifacts/scaler.joblib")
+        self.model = joblib.load(config.ARTIFACTS_DIR / "xgb_model.joblib")
+        self.scaler = joblib.load(config.ARTIFACTS_DIR / "scaler.joblib")
 
-        with open("artifacts/metadata.json", "r") as f:
+        with open(config.ARTIFACTS_DIR / "metadata.json", "r") as f:
             self.metadata = json.load(f)
 
         self.feature_names = self.metadata["features"]

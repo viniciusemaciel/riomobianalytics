@@ -3,6 +3,9 @@ import os
 import sys
 from pymongo import MongoClient
 from neo4j import GraphDatabase
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))  # raiz do repo (config.py)
 import config
 
 def setup_mongodb():

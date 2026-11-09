@@ -197,18 +197,17 @@ try:
                     unsafe_allow_html=True,
                 )
         else:
-            st.info("Sem dados de nível de risco — rode o pipeline ETL primeiro.")
+            st.info("Sem dados de nível de risco disponíveis no momento.")
     except Exception as e:
         st.caption(f"Distribuição indisponível: {e}")
 
     # ---------------- Nav cards ----------------
     st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
-    section_title("Explorar", "seis visões sobre o mesmo dataset")
+    section_title("Explorar", "cinco visões sobre o mesmo dataset")
 
     nav_items = [
         ("◉", "Mapa interativo",       "Paradas coloridas por nível de risco total e distribuição geográfica das reclamações do 1746.", "pages/01_Mapa_Interativo.py"),
         ("◈", "Grafo de rede",         "Topologia da rede de trânsito com nós coloridos pelo risco total de cada parada.",              "pages/02_Grafo_de_Rede.py"),
-        ("↑", "Gerenciamento de dados", "Upload de arquivos GTFS/CSV e execução do pipeline ETL passo a passo.",                   "pages/03_Gerenciamento_de_Dados.py"),
         ("⌕", "Explorar detalhes",     "Busca dirigida por parada ou protocolo com visão detalhada de vínculos.",                  "pages/04_Explorar_Detalhes.py"),
         ("∫", "Metodologia",           "Como o risco total de cada parada é calculado — chamados, modelo preditivo e fórmula combinada.", "pages/05_Metodologia.py"),
         ("⟐", "Modelo preditivo",      "Playground interativo do XGBoost — inspecione features, simule cenários e entenda as predições.", "pages/06_Modelo_Preditivo.py"),
@@ -216,7 +215,7 @@ try:
 
     top_row = st.columns(3)
     bottom_row = st.columns(3)
-    cell_containers = list(top_row) + list(bottom_row)
+    cell_containers = list(top_row) + list(bottom_row[:2])
 
     for (icon, title, desc, page), cell in zip(nav_items, cell_containers):
         with cell:
@@ -247,7 +246,7 @@ try:
             **Cache**
 
             Dados de leitura são cacheados por 5 minutos no processo do Streamlit
-            (`@st.cache_data(ttl=300)`). Após executar o pipeline ETL, use o botão
+            (`@st.cache_data(ttl=300)`). Após uma nova carga de dados, use o botão
             *Atualizar* do console de queries no rodapé ou recarregue a página.
             """
         )

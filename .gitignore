@@ -1,27 +1,29 @@
+# Segredos
 .env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-*.egg
+*.py[cod]
 *.egg-info/
-dist/
-build/
 .venv/
 venv/
-ENV/
+.ipynb_checkpoints/
 
+# Gerados pelos notebooks (recriáveis)
+data/model_dataset.parquet
+
+# SO / editores
 .DS_Store
 .idea/
 .vscode/
 *.swp
-*.swo
-*~
-
 *.log
+
+# Ferramentas
 .claude/
-MIGRACAO_DATASET.md
-RELATORIO_AUDITORIA.md
-.env.exemple
+
+# Limpeza local
+_to_delete/

@@ -62,7 +62,7 @@ try:
     if stops_df.empty:
         render_empty_state(
             "Sem dados de rede",
-            "Execute o pipeline ETL para popular a rede de conexões entre paradas.",
+            "Rede de conexões sem dados disponíveis.",
         )
     else:
         col1, col2 = st.columns([3, 1])

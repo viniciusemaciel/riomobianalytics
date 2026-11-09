@@ -6,9 +6,6 @@ secondaryBackgroundColor = "#FFFFFF"
 textColor = "#0B1F3A"
 font = "sans serif"
 
-[server]
-runOnSave = true
-
 [browser]
 gatherUsageStats = false
 

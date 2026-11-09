@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 from neo4j import GraphDatabase
 from tqdm import tqdm
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))  # raiz do repo (config.py)
 import config
 import sys
 import zipfile

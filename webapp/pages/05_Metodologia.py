@@ -366,7 +366,7 @@ st.caption(
     "`scripts/07_predict_risk.py` (modelo ML + combinação), "
     "`scripts/04_sync_1746_to_neo4j.py` (atribuição reclamação↔parada), "
     "`config.py` (pesos). "
-    "Modelo: `artifacts/xgb_model.joblib`, treinado em `modelo-treinamento.ipynb`."
+    "Modelo: `artifacts/xgb_model.joblib`, treinado em `notebooks/04_treino_modelo.ipynb`."
 )
 
 render_query_console()

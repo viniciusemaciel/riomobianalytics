@@ -44,7 +44,7 @@ with tab1:
         if stops_df.empty:
             render_empty_state(
                 "Sem dados de paradas",
-                "Execute o pipeline ETL na aba Gerenciamento de dados para popular o banco.",
+                "Banco sem dados disponíveis.",
             )
         else:
             col1, col2 = st.columns([3, 1])

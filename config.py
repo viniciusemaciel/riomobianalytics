@@ -1,21 +1,68 @@
+"""
+Configuração central do RioMobiAnalytics.
+
+Ordem de leitura das credenciais:
+  1. variáveis de ambiente / arquivo .env (desenvolvimento local e scripts)
+  2. st.secrets (Streamlit Community Cloud)
+Caminhos são absolutos a partir da raiz do repo, então app e scripts
+funcionam independentemente do diretório de execução.
+"""
 import os
+from pathlib import Path
+from urllib.parse import quote_plus
+
 from dotenv import load_dotenv
 
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
 
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
-MONGO_DB = os.getenv('MONGO_DB', 'riomobianalytics')
 
-NEO4J_URI = os.getenv('NEO4J_URI', 'bolt://localhost:7687')
-NEO4J_USER = os.getenv('NEO4J_USER', 'neo4j')
-NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD', 'password')
+def _secret(*keys, default=None):
+    """Primeiro valor encontrado entre as chaves, no ambiente ou em st.secrets."""
+    for key in keys:
+        value = os.getenv(key)
+        if value:
+            return value
+    try:
+        import streamlit as st
+        for key in keys:
+            if key in st.secrets:
+                return str(st.secrets[key])
+    except Exception:
+        pass
+    return default
 
-GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', '')
 
-GTFS_DIR = os.getenv('GTFS_DIR', './data/gtfs/')
-RECLAMACOES_1746_FILE = os.getenv('RECLAMACOES_FILE', './data/1746/chamados_v2_com_stops_filtrado.csv')
-BAIRROS_LOOKUP_FILE = os.getenv('BAIRROS_FILE', './data/gtfs/Limite_de_Bairros.csv')
+def _mongo_uri():
+    uri = _secret("MONGO_URI", "MONGODB_URI", default="mongodb://localhost:27017/")
+    user = _secret("MONGODB_USERNAME")
+    pwd = _secret("MONGODB_PASSWORD")
+    # Atlas: se a URI veio sem credenciais, injeta usuário/senha (com escape)
+    if user and pwd and "@" not in uri.split("://", 1)[-1].split("/", 1)[0]:
+        scheme, rest = uri.split("://", 1)
+        uri = f"{scheme}://{quote_plus(user)}:{quote_plus(pwd)}@{rest}"
+    return uri
 
+
+# ---------------- Bancos ----------------
+MONGO_URI = _mongo_uri()
+MONGO_DB = _secret("MONGO_DB", default="riomobianalytics")
+
+NEO4J_URI = _secret("NEO4J_URI", default="bolt://localhost:7687")
+NEO4J_USER = _secret("NEO4J_USER", "NEO4J_USERNAME", default="neo4j")
+NEO4J_PASSWORD = _secret("NEO4J_PASSWORD", default="password")
+
+# ---------------- Caminhos ----------------
+DATA_DIR = BASE_DIR / "data"
+ARTIFACTS_DIR = BASE_DIR / "artifacts"
+
+GTFS_DIR = os.getenv("GTFS_DIR", str(DATA_DIR / "gtfs"))
+RECLAMACOES_1746_FILE = os.getenv(
+    "RECLAMACOES_FILE", str(DATA_DIR / "1746" / "chamados_v2_com_stops_filtrado.csv")
+)
+BAIRROS_LOOKUP_FILE = os.getenv("BAIRROS_FILE", str(DATA_DIR / "gtfs" / "Limite_de_Bairros.csv"))
+
+# ---------------- Parâmetros do pipeline ----------------
 BATCH_SIZE = 1000
 MAX_DISTANCE_AFFECTS_METERS = 100
 
@@ -46,7 +93,6 @@ CHAMADOS_V2_DEFAULTS = {
 # em paradas de ônibus são carregados. Chaves são valores da coluna `tipo`
 # no CSV chamados_v2_com_stops_filtrado; valores são a categoria canônica
 # usada por CATEGORIA_PESOS. Tipos ausentes deste mapa são descartados.
-# Ver MIGRACAO_DATASET.md para justificativa por linha.
 TIPO_TO_SERVICO = {
     'Iluminação Pública': 'Iluminação Pública',
     'Reformulação de iluminação pública': 'Iluminação Pública',

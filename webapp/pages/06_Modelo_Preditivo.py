@@ -74,7 +74,7 @@ model, scaler, meta = load_model_artifacts()
 stops_df = get_stops_with_risk()
 
 if stops_df.empty:
-    render_empty_state("Sem dados", "Execute o pipeline ETL primeiro.")
+    render_empty_state("Sem dados", "Banco sem dados disponíveis.")
     st.stop()
 
 # ---------------------------------------------------------------------------

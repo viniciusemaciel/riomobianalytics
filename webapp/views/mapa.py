@@ -13,7 +13,7 @@ from webapp.utils.data_fetchers import (
     get_route_stop_ids, get_routes_with_metrics, get_stop_complaints, get_stop_details,
     get_stops_with_risk, get_system_stats,
 )
-from webapp.utils.insights import stop_history
+from webapp.utils.insights import MESES_ABREV, shootings_by_month
 from webapp.utils.state import get_selected, go as go_page, set_selected
 from webapp.utils.theme import (
     CATEGORY_COLORS, LEVEL_COLORS, LEVELS, LINE, MUTED, NAVY, NO_LEVEL_COLOR,
@@ -130,26 +130,22 @@ def highlight_group(stop: dict | None) -> folium.FeatureGroup:
     return fg
 
 
-def history_chart(hist: pd.DataFrame):
-    months = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
-    x = list(range(len(hist)))
-    y = (hist["y_pred_prob_xgb"] * 100).round(0)
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=x, y=y, mode="lines+markers", line=dict(color=ORANGE, width=2),
-        marker=dict(size=5, color=ORANGE),
-        hovertemplate="%{customdata}: score %{y:.0f}<extra></extra>",
-        customdata=hist["ano_mes"],
+def shootings_chart(ser: pd.DataFrame):
+    """Barras de tiroteios por mês com o número em cima. Sem zoom nem arrasto."""
+    n = ser["n"].tolist()
+    top = max(n) if max(n) > 0 else 1
+    fig = go.Figure(go.Bar(
+        x=ser["rotulo"], y=n,
+        marker=dict(color=[ORANGE if v > 0 else "#E6EAEF" for v in n], line=dict(width=0)),
+        text=[str(v) for v in n], textposition="outside", cliponaxis=False,
+        textfont=dict(size=11, color=[NAVY if v > 0 else MUTED for v in n]),
+        customdata=[f"{p.month:02d}/{p.year}" for p in ser["mes"]],
+        hovertemplate="%{customdata}: %{y} tiroteio(s)<extra></extra>",
     ))
-    ev = hist["y_true"] == 1
-    fig.add_trace(go.Scatter(
-        x=[i for i, e in zip(x, ev) if e], y=[-8] * int(ev.sum()), mode="markers",
-        marker=dict(symbol="square", size=7, color=NAVY), hoverinfo="skip",
-    ))
-    plotly_layout(fig, height=130, margin=dict(l=4, r=4, t=6, b=4))
-    fig.update_xaxes(tickvals=x, ticktext=[months[int(m[-2:]) - 1] for m in hist["ano_mes"]],
-                     showgrid=False, tickfont=dict(size=10, color=MUTED))
-    fig.update_yaxes(range=[-16, 105], showgrid=False, showticklabels=False, zeroline=False)
+    plotly_layout(fig, height=150, margin=dict(l=2, r=2, t=18, b=2))
+    fig.update_layout(dragmode=False, bargap=0.28)
+    fig.update_xaxes(fixedrange=True, showgrid=False, tickfont=dict(size=10, color=MUTED), ticks="")
+    fig.update_yaxes(fixedrange=True, visible=False, range=[0, top * 1.3])
     return fig
 
 
@@ -189,8 +185,6 @@ def render_panel(sel_id: str, stops_df: pd.DataFrame) -> None:
         unsafe_allow_html=True,
     )
 
-    hist = stop_history(sel_id)
-    months_evt = int(hist["y_true"].sum()) if not hist.empty else None
     tiles = [
         (fmt_int(det.get("total_complaints") or 0), "reclamações vinculadas"),
         (fmt_int(len(routes)), "linhas passam aqui"),
@@ -211,15 +205,25 @@ def render_panel(sel_id: str, stops_df: pd.DataFrame) -> None:
         unsafe_allow_html=True,
     )
 
-    if not hist.empty:
+    row = stops_df.loc[stops_df["id"] == sel_id]
+    lat = float(row["lat"].iloc[0]) if not row.empty else det.get("lat")
+    lon = float(row["lon"].iloc[0]) if not row.empty else det.get("lon")
+    ser = shootings_by_month(lat, lon) if lat is not None and lon is not None else pd.DataFrame()
+    if not ser.empty:
+        first, last = ser["mes"].iloc[0], ser["mes"].iloc[-1]
+        periodo = (str(last.year) if first.year == last.year
+                   else f"{MESES_ABREV[first.month - 1]}/{first.year} a {MESES_ABREV[last.month - 1]}/{last.year}")
+        total = int(ser["n"].sum())
         st.markdown(
-            f"<div class='rm-eyebrow' style='margin-top:10px'>Score do modelo por mês, 2024</div>"
-            f"<div class='rm-muted' style='margin-top:4px'>Tiroteio a até 500 m em {months_evt} de {len(hist)} meses "
-            f"<span style='display:inline-block;width:8px;height:8px;background:{NAVY};border-radius:1px;margin-left:4px'></span></div>",
+            f"<div class='rm-eyebrow' style='margin-top:10px'>Tiroteios a até 500 m, {periodo}</div>"
+            f"<div class='rm-muted' style='margin-top:4px'>{total} tiroteio{'s' if total != 1 else ''} no período · fonte: Fogo Cruzado</div>",
             unsafe_allow_html=True,
         )
-        st.plotly_chart(history_chart(hist), width="stretch",
-                        config={"displayModeBar": False, "staticPlot": False}, key="hist_chart")
+        st.plotly_chart(
+            shootings_chart(ser), width="stretch", key="tiroteios_chart",
+            config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False,
+                    "showAxisDragHandles": False, "responsive": True},
+        )
 
     if routes:
         shown = routes[:10]

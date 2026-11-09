@@ -157,3 +157,48 @@ def network_art_svg(highlight: pd.DataFrame | None, w: int = 640, h: int = 440,
         f'<g stroke="#0B1F3A" stroke-opacity=".26" stroke-width=".7" stroke-linecap="round">{lines}</g>'
         f'<g fill="#F26A4B" fill-opacity=".9">{dots}</g></svg>'
     )
+
+
+FOGO_DIR = ROOT / "data" / "fogocruzado"
+MESES_ABREV = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
+
+
+@st.cache_data(show_spinner=False)
+def load_shootings() -> pd.DataFrame:
+    """Ocorrências do Fogo Cruzado (lat, lon, mês) lidas de data/fogocruzado/*.csv."""
+    files = sorted(FOGO_DIR.glob("*.csv"))
+    if not files:
+        return pd.DataFrame(columns=["lat", "lon", "mes"])
+    df = pd.concat(
+        [pd.read_csv(f, usecols=["latitude", "longitude", "data"]) for f in files],
+        ignore_index=True,
+    ).dropna()
+    dt = pd.to_datetime(df["data"], format="%d/%m/%Y, %H:%M:%S", errors="coerce")
+    return pd.DataFrame({
+        "lat": df["latitude"].astype(float),
+        "lon": df["longitude"].astype(float),
+        "mes": dt.dt.to_period("M"),
+    }).dropna()
+
+
+@st.cache_data(show_spinner=False)
+def shootings_by_month(lat: float, lon: float, radius_m: float = 500, months: int = 12) -> pd.DataFrame:
+    """Tiroteios a até `radius_m` metros do ponto, por mês, nos últimos `months` meses da base.
+
+    Mesmo raio usado no alvo do modelo (500 m). Devolve colunas mes (Period), rotulo e n.
+    """
+    df = load_shootings()
+    if df.empty:
+        return pd.DataFrame(columns=["mes", "rotulo", "n"])
+    end = df["mes"].max()
+    period = pd.period_range(end=end, periods=months, freq="M")
+    recent = df[df["mes"] >= period[0]]
+    la1, lo1 = np.radians(lat), np.radians(lon)
+    la2, lo2 = np.radians(recent["lat"].values), np.radians(recent["lon"].values)
+    a = np.sin((la2 - la1) / 2) ** 2 + np.cos(la1) * np.cos(la2) * np.sin((lo2 - lo1) / 2) ** 2
+    dist = 2 * 6_371_000 * np.arcsin(np.sqrt(a))
+    counts = recent.loc[dist <= radius_m, "mes"].value_counts()
+    out = pd.DataFrame({"mes": period})
+    out["n"] = out["mes"].map(counts).fillna(0).astype(int)
+    out["rotulo"] = [MESES_ABREV[p.month - 1] for p in out["mes"]]
+    return out

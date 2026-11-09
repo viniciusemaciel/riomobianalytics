@@ -59,4 +59,4 @@ O `config.py` lê as credenciais do ambiente/`.env` e, se não encontrar, de `st
 
 - O Neo4j AuraDB Free pausa após alguns dias sem uso; retome a instância no console antes de apresentar.
 - O AuraDB Free não tem o plugin GDS; por isso o PageRank é calculado em Python (`06_pagerank.py`), com os mesmos parâmetros usados no treino.
-- Para retreinar o modelo, gere `data/model_dataset.parquet` com `notebooks/03_feature_engineering.ipynb` e rode `notebooks/04_treino_modelo.ipynb`; os artefatos são salvos em `artifacts/`.
+- Para retreinar o modelo, gere `data/model_dataset.parquet` com `notebooks/preprocessamento-feature-engineering.ipynb` e rode `notebooks/modelo-treinamento.ipynb`; os artefatos são salvos em `artifacts/`.

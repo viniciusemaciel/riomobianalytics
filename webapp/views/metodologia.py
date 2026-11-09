@@ -1,31 +1,68 @@
-import sys
-from pathlib import Path
-
+"""Metodologia — como o índice de risco é calculado, limites e glossário."""
 import pandas as pd
 import streamlit as st
 
-sys.path.append(str(Path(__file__).parent.parent.parent))
-
 from webapp.utils.footer_console import render_query_console
-from webapp.utils.theme import (
-    apply_theme, render_page_header, section_title, PAGE_ICON,
+from webapp.utils.insights import model_metrics
+from webapp.utils.theme import ORANGE, fmt_dec, page_header, section_title
+
+page_header(
+    "Metodologia",
+    "Como o índice de risco é calculado",
+    "O projeto cruza a rede de ônibus do Rio com reclamações de serviços públicos e registros de tiroteio "
+    "para comparar o risco no entorno de cada parada.",
 )
 
-st.set_page_config(page_title="Metodologia · RioMobiAnalytics",
-                   page_icon=PAGE_ICON, layout="wide")
+_steps = [
+    ("01", "Fontes", "GTFS Rio, Central 1746 e Fogo Cruzado"),
+    ("02", "Armazenamento", "Neo4j: rede de paradas e linhas. MongoDB: reclamações"),
+    ("03", "Métricas", "Peso das reclamações, PageRank e contagens em 3, 6 e 12 meses"),
+    ("04", "Modelo", "XGBoost com 16 variáveis, treino 2021 a 2023"),
+    ("05", "Índice", "Reclamações e modelo combinados de 0 a 100"),
+]
+_flow = []
+for _i, (_n, _t, _d) in enumerate(_steps):
+    _acc = _n == "04"
+    _flow.append(
+        f"<div class='rm-flow__step{' rm-flow__step--accent' if _acc else ''}'><div class='rm-flow__num'><span>{_n}</span>"
+        + (f"<span class='rm-dot' style='background:{ORANGE}'></span>" if _acc else "")
+        + f"</div><div class='rm-flow__title'>{_t}</div><div class='rm-flow__desc'>{_d}</div></div>"
+    )
+    if _i < len(_steps) - 1:
+        _flow.append("<div class='rm-flow__arrow'></div>")
+st.markdown(f"<div class='rm-flow'>{''.join(_flow)}</div>", unsafe_allow_html=True)
 
-apply_theme()
+_lim = [
+    ("O índice reflete a área", "Latitude e longitude são as variáveis de maior peso no modelo. Paradas vizinhas tendem a ter índices parecidos."),
+    ("Tiroteio no entorno não é na parada", "O rótulo do modelo indica tiroteio registrado a até 500 m da parada no mês, não um evento no ponto de ônibus."),
+    ("Reclamação depende de quem registra", "Áreas com menos acesso à Central 1746 podem aparecer com menos reclamações do que têm de problema."),
+    ("O índice é relativo", "A escala de 0 a 100 é uma normalização entre as paradas atuais. Serve para comparar, não é probabilidade."),
+]
+_gl = [
+    ("Índice de risco", "Nota de 0 a 100 de cada parada (risk_score_normalized)."),
+    ("Entorno", "Raio de 500 m em volta da parada, usado para associar tiroteios."),
+    ("Score de tiroteio", "Saída do modelo XGBoost (0 a 100). Ordena paradas, não é probabilidade calibrada."),
+    ("PageRank", "Mede quão central uma parada é na rede de linhas."),
+]
+_c1, _c2 = st.columns(2, gap="large")
+with _c1:
+    section_title("Limites que importam")
+    st.markdown("".join(
+        f"<div style='border-top:1px solid #E2E6EB;padding:12px 0'><div style='font-weight:600'>{t}</div>"
+        f"<div class='rm-muted' style='margin-top:3px'>{d}</div></div>" for t, d in _lim), unsafe_allow_html=True)
+with _c2:
+    section_title("Glossário")
+    st.markdown("".join(
+        f"<div style='border-top:1px solid #E2E6EB;padding:12px 0;display:flex;gap:16px'>"
+        f"<div style='width:150px;flex:none;font-weight:600'>{t}</div><div class='rm-muted'>{d}</div></div>"
+        for t, d in _gl), unsafe_allow_html=True)
 
-render_page_header(
-    "Metodologia de cálculo de risco",
-    "Como o risco total de cada parada é calculado — chamados 1746, modelo preditivo e fórmula combinada",
-    icon="∫",
-)
+st.markdown("<div class='rm-section'><div class='rm-eyebrow'>Detalhamento</div><h2>Cada etapa do cálculo</h2></div>",
+            unsafe_allow_html=True)
 
 # =============================================================================
 # 1. PESO SEMÂNTICO (REATIVO)
 # =============================================================================
-st.divider()
 section_title("1. Risco por Chamados (reativo)")
 
 section_title("1.1. Peso semântico por categoria")
@@ -44,7 +81,7 @@ pesos_df = pd.DataFrame([
     {"Categoria": "Limpeza Urbana",        "Peso": 0.4, "Motivação": "Degradação do entorno correlaciona com sensação de insegurança"},
     {"Categoria": "Outros",                "Peso": 0.3, "Motivação": "Fallback para tipos residuais"},
 ])
-st.dataframe(pesos_df, use_container_width=True, hide_index=True)
+st.dataframe(pesos_df, width="stretch", hide_index=True)
 
 st.info(
     "Uma reclamação de **Segurança Pública** pesa 3.75× mais que uma de **Limpeza "
@@ -52,7 +89,6 @@ st.info(
     "podem ser ajustados."
 )
 
-st.divider()
 section_title("1.2. Vinculação reclamação ↔ parada")
 
 st.markdown(
@@ -63,7 +99,6 @@ st.markdown(
     "**exatamente o peso da categoria** da reclamação."
 )
 
-st.divider()
 section_title("1.3. Risk score bruto (risk_score_atual)")
 
 st.markdown("Para cada parada, somamos as contribuições de todas as reclamações que a afetam:")
@@ -88,12 +123,11 @@ sat_df = pd.DataFrame([
     {"risk_sum": 100, "risk_score": 0.909, "Interpretação": "Saturando"},
     {"risk_sum": 500, "risk_score": 0.980, "Interpretação": "Teto"},
 ])
-st.dataframe(sat_df, use_container_width=True, hide_index=True)
+st.dataframe(sat_df, width="stretch", hide_index=True)
 
 # =============================================================================
 # 2. RISCO DE TIROTEIO (PREDITIVO — ML)
 # =============================================================================
-st.divider()
 section_title("2. Risco de Tiroteio (preditivo — ML)")
 
 st.markdown(
@@ -102,7 +136,6 @@ st.markdown(
     "da parada, usando dados históricos do **Fogo Cruzado** e dos chamados 1746."
 )
 
-st.divider()
 section_title("2.1. Dados de treinamento")
 
 st.markdown(
@@ -114,7 +147,6 @@ st.markdown(
     "A taxa base é de ~13% dos meses com tiroteio próximo à parada."
 )
 
-st.divider()
 section_title("2.2. Features do modelo (16 variáveis)")
 
 features_df = pd.DataFrame([
@@ -125,7 +157,7 @@ features_df = pd.DataFrame([
     {"Categoria": "Chamados — lag 6m", "Features": "Total, Segurança Pública, Iluminação Pública"},
     {"Categoria": "Chamados — lag 12m","Features": "Total, Segurança Pública, Iluminação Pública"},
 ])
-st.dataframe(features_df, use_container_width=True, hide_index=True)
+st.dataframe(features_df, width="stretch", hide_index=True)
 
 st.markdown(
     "As contagens de chamados recebem `log1p` para comprimir a cauda longa "
@@ -140,7 +172,6 @@ st.info(
     "nunca vê dados do futuro."
 )
 
-st.divider()
 section_title("2.3. Arquitetura e hiperparâmetros")
 
 hiper_df = pd.DataFrame([
@@ -152,28 +183,27 @@ hiper_df = pd.DataFrame([
     {"Parâmetro": "Balanceamento",           "Valor": "scale_pos_weight = 5.01"},
     {"Parâmetro": "Métrica de otimização",   "Valor": "AUC-ROC"},
 ])
-st.dataframe(hiper_df, use_container_width=True, hide_index=True)
+st.dataframe(hiper_df, width="stretch", hide_index=True)
 
-st.divider()
 section_title("2.4. Performance")
 
+_m = model_metrics()
 perf_df = pd.DataFrame([
-    {"Métrica": "AUC-ROC",              "Valor": "0.71"},
-    {"Métrica": "Acurácia",             "Valor": "0.68"},
-    {"Métrica": "Precisão (classe 1)",  "Valor": "0.23"},
-    {"Métrica": "Recall (classe 1)",    "Valor": "0.58"},
-    {"Métrica": "F1-score",             "Valor": "0.32"},
+    {"Métrica": "AUC-ROC", "Valor": fmt_dec(_m.get("auc"))},
+    {"Métrica": "Precisão (classe 1)", "Valor": fmt_dec(_m.get("precision"))},
+    {"Métrica": "Recall (classe 1)", "Valor": fmt_dec(_m.get("recall"))},
+    {"Métrica": "Taxa base (meses com tiroteio)", "Valor": fmt_dec(_m.get("base_rate"))},
 ])
-st.dataframe(perf_df, use_container_width=True, hide_index=True)
+st.dataframe(perf_df, width="stretch", hide_index=True)
 
 st.markdown(
-    "O AUC-ROC de 0.71 está significativamente acima do aleatório (0.50). "
+    "Valores calculados sobre `artifacts/val_predictions.parquet` (validação 2024), com o corte salvo em "
+    "`metadata.json`. O AUC-ROC de 0,71 está bem acima do aleatório (0,50). "
     "O modelo é adequado para **priorização e scoring**, não para alarmes "
     "de alta precisão. Artefatos em `artifacts/`: `xgb_model.joblib` (768 KB), "
     "`scaler.joblib`, `metadata.json`."
 )
 
-st.divider()
 section_title("2.5. Importância das features")
 
 st.markdown(
@@ -200,7 +230,7 @@ importance_df = pd.DataFrame([
     {"Feature": "num_reclamacoes_seguranca_3m", "Importância":  "1.3%"},
     {"Feature": "num_reclamacoes_3m",           "Importância":  "1.1%"},
 ])
-st.dataframe(importance_df, use_container_width=True, hide_index=True)
+st.dataframe(importance_df, width="stretch", hide_index=True)
 
 st.markdown(
     "**Leitura por grupo:**\n"
@@ -225,7 +255,6 @@ st.info(
 # =============================================================================
 # 3. RISCO TOTAL (COMBINADO)
 # =============================================================================
-st.divider()
 section_title("3. Risco Total (combinado)")
 
 st.markdown(
@@ -248,7 +277,6 @@ st.markdown(
     "- **Divisor 2**: mantém o score no intervalo [0, 1]"
 )
 
-st.divider()
 section_title("3.1. Normalização (0–100)")
 
 st.markdown(
@@ -264,7 +292,6 @@ st.markdown(
     "paradas mais legíveis. **É a escala usada em todo o app.**"
 )
 
-st.divider()
 section_title("3.2. Classificação em 4 níveis (quartis do range)")
 
 st.markdown(
@@ -288,7 +315,6 @@ st.info(
 # =============================================================================
 # 4. MÉTRICAS DE ROTA E CONEXÕES
 # =============================================================================
-st.divider()
 section_title("4. Métricas de rota")
 
 st.markdown(
@@ -307,7 +333,6 @@ st.info(
     "mesmo que sua média absoluta pareça modesta (lembre: a normalização é relativa)."
 )
 
-st.divider()
 section_title("5. Custo ajustado por risco (arestas)")
 
 st.markdown(
@@ -324,7 +349,6 @@ st.markdown(
 # =============================================================================
 # 6. RESUMO VISUAL DO PIPELINE
 # =============================================================================
-st.divider()
 section_title("6. Resumo visual do pipeline completo")
 
 st.markdown("""
@@ -360,7 +384,6 @@ st.markdown("""
 ```
 """)
 
-st.divider()
 st.caption(
     "Implementação: `scripts/05_calculate_metrics.py` (risco reativo), "
     "`scripts/07_predict_risk.py` (modelo ML + combinação), "

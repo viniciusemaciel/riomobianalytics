@@ -19,11 +19,11 @@ def render_query_console():
     with st.expander(summary, expanded=False):
         col1, col2 = st.columns([1, 1])
         with col1:
-            if st.button("Limpar histórico", key="clear_console", use_container_width=True):
+            if st.button("Limpar histórico", key="clear_console", width="stretch"):
                 QueryLogger.clear_logs()
                 st.rerun()
         with col2:
-            if st.button("Atualizar", key="refresh_console", use_container_width=True):
+            if st.button("Atualizar", key="refresh_console", width="stretch"):
                 st.rerun()
 
         c1, c2, c3, c4 = st.columns(4)

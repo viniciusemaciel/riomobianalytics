@@ -1,382 +1,203 @@
-"""RioMobiAnalytics — design system helpers.
+"""RioMobiAnalytics — sistema visual compartilhado.
 
-Uso mínimo em cada página:
+Uso em cada página (o roteador `webapp/Home.py` já chama `apply_theme`):
 
-    from webapp.utils.theme import apply_theme, render_page_header, PAGE_ICON
+    from webapp.utils.theme import page_header, risk_badge, LEVEL_COLORS
 
-    st.set_page_config(page_title="...", page_icon=PAGE_ICON, layout="wide")
-    apply_theme()
-    render_page_header("Título", "Subtítulo", icon="MAP")
+Regras do redesign:
+- Azul-marinho em texto, navegação e controles.
+- Laranja reservado ao dado (índice de risco, tiroteio) e ao ponto do logo.
+- Índice de risco = `risk_score_normalized` (0 a 100), nunca "% de chance".
 """
 from __future__ import annotations
 
-import base64
-from functools import lru_cache
-from pathlib import Path
 import html
+from pathlib import Path
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
-LOGO_MARK = ASSETS_DIR / "logo_mark.png"
-LOGO_FULL = ASSETS_DIR / "logo_full.png"
+LOGO_MARK = ASSETS_DIR / "logo_mark.svg"
+LOGO_FULL = ASSETS_DIR / "logo_full.svg"
 FAVICON = ASSETS_DIR / "favicon.png"
 STYLE_CSS = ASSETS_DIR / "style.css"
 
-PAGE_ICON = str(FAVICON) if FAVICON.exists() else "🚌"
+PAGE_ICON = str(FAVICON) if FAVICON.exists() else None
 
+NAVY = "#0B1F3A"
+NAVY_SOFT = "#1B3457"
+ORANGE = "#F26A4B"
+CREAM = "#FAF7F2"
+TEXT_2 = "#566579"
+MUTED = "#8C97A6"
+LINE = "#E2E6EB"
+SUNKEN = "#F4F6F8"
 
-@lru_cache(maxsize=8)
-def _asset_data_uri(path_str: str) -> str:
-    """Return a base64 data URI for a PNG asset (cached per process)."""
-    path = Path(path_str)
-    if not path.exists():
-        return ""
-    b64 = base64.b64encode(path.read_bytes()).decode("ascii")
-    return f"data:image/png;base64,{b64}"
+LEVELS = ["Baixo", "Médio-Baixo", "Médio-Alto", "Alto"]
 
-BRAND = {
-    "navy": "#0B1F3A",
-    "navy_soft": "#1B3457",
-    "coral": "#F26A4B",
-    "cream": "#FAF7F2",
-    "high": "#D14B3A",       # Alto — vermelho
-    "med_high": "#E9A23B",   # Médio-Alto — âmbar
-    "med_low": "#3F9E6E",    # Médio-Baixo — verde
-    "low": "#3B78C7",        # Baixo — azul
+# Degradê de laranja: quanto mais alto o nível, mais fechado o tom.
+LEVEL_COLORS = {
+    "Baixo": "#F2DDD5",
+    "Médio-Baixo": "#F2B19C",
+    "Médio-Alto": "#F08463",
+    "Alto": "#D9542F",
+}
+NO_LEVEL_COLOR = "#C9D1DB"
+
+# Texto legível sobre o fundo de cada nível (selos).
+LEVEL_BADGE = {
+    "Baixo": ("#F6ECE8", "#7A4A3C"),
+    "Médio-Baixo": ("#FBE6DE", "#8E3F28"),
+    "Médio-Alto": ("#FBDDD2", "#8E3220"),
+    "Alto": ("#F8D3C6", "#7E2814"),
 }
 
+# Categorias de reclamação: tons de azul-marinho, laranja só em Segurança.
 CATEGORY_COLORS = {
-    "Segurança Pública":      "#D14B3A",
-    "Iluminação Pública":     "#E9A23B",
-    "Trânsito e Transporte":  "#3B78C7",
-    "Conservação de Vias":    "#8A5CB6",
-    "Limpeza Urbana":         "#3F9E6E",
-    "Outros":                 "#8A93A3",
+    "Segurança Pública": ORANGE,
+    "Iluminação Pública": "#1B3457",
+    "Trânsito e Transporte": "#4A6385",
+    "Conservação de Vias": "#7D90AB",
+    "Limpeza Urbana": "#A9B6C8",
+    "Outros": "#C9D1DB",
 }
+
+# Compatibilidade com código antigo que ainda importe BRAND.
+BRAND = {
+    "navy": NAVY, "navy_soft": NAVY_SOFT, "coral": ORANGE, "cream": CREAM,
+    "high": LEVEL_COLORS["Alto"], "med_high": LEVEL_COLORS["Médio-Alto"],
+    "med_low": LEVEL_COLORS["Médio-Baixo"], "low": LEVEL_COLORS["Baixo"],
+}
+
+PLOT_FONT = dict(family="Geist, Inter, sans-serif", color=NAVY, size=12)
+
+
+def normalize_level(level: str | None) -> str | None:
+    if not level:
+        return None
+    return {"Medio-Alto": "Médio-Alto", "Medio-Baixo": "Médio-Baixo"}.get(level, level)
+
+
+def get_risk_color(level: str | None) -> str:
+    return LEVEL_COLORS.get(normalize_level(level), NO_LEVEL_COLOR)
+
+
+def fmt_int(value) -> str:
+    try:
+        return f"{int(value):,}".replace(",", ".")
+    except (TypeError, ValueError):
+        return "—"
+
+
+def fmt_dec(value, digits: int = 2) -> str:
+    try:
+        return f"{float(value):.{digits}f}".replace(".", ",")
+    except (TypeError, ValueError):
+        return "—"
+
+
+@st.cache_data(show_spinner=False)
+def _read_css() -> str:
+    return STYLE_CSS.read_text(encoding="utf-8") if STYLE_CSS.exists() else ""
 
 
 def apply_theme() -> None:
-    """Inject the shared stylesheet + brand the sidebar. Idempotent per rerun."""
-    if STYLE_CSS.exists():
-        css = STYLE_CSS.read_text(encoding="utf-8")
+    """Injeta o CSS compartilhado. Chamado uma vez por execução no roteador."""
+    css = _read_css()
+    if css:
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
-    logo_uri = _asset_data_uri(str(LOGO_FULL))
-    if logo_uri:
-        # Injeta a logo no topo do sidebar + botão custom "abrir sidebar".
-        # Roda dentro de um iframe (components.html) mas manipula o
-        # window.parent.document. O clique é sintetizado com pointerdown+
-        # mouseup+click porque botões React do Streamlit não respondem a
-        # HTMLElement.click() puro em algumas versões.
-        components.html(
-            f"""
-            <script>
-            (function() {{
-                const LOGO_ID = 'rm-sidebar-logo-node';
-                const TOGGLE_ID = 'rm-sidebar-toggle';
-                const LOGO_URI = "{logo_uri}";
-                const doc = window.parent.document;
-                const win = window.parent;
 
-                function findNativeToggle() {{
-                    // Streamlit 1.60 usa dois botões distintos:
-                    //   • stExpandSidebarButton — no toolbar do topo, aparece
-                    //     APENAS quando o sidebar está colapsado.
-                    //   • stSidebarCollapseButton — dentro do sidebar, aparece
-                    //     apenas quando o sidebar está aberto.
-                    // Como o nosso botão custom só é visível na condição
-                    // "sidebar colapsado", queremos sempre o Expand.
-                    const selectors = [
-                        'button[data-testid="stExpandSidebarButton"]',
-                        '[data-testid="stExpandSidebarButton"]',
-                        '[data-testid="stExpandSidebarButton"] button',
-                        // Fallbacks pra outras versões:
-                        '[data-testid="stSidebarCollapsedControl"] button',
-                        '[data-testid="collapsedControl"] button',
-                    ];
-                    for (const sel of selectors) {{
-                        const nodes = doc.querySelectorAll(sel);
-                        for (const n of nodes) {{
-                            if (n && n.id !== TOGGLE_ID) return n;
-                        }}
-                    }}
-                    return null;
-                }}
-
-                function fireRealClick(el) {{
-                    // Botões React do Streamlit escutam pointerdown+mouseup, e
-                    // ignoram HTMLElement.click() em alguns casos. Disparamos
-                    // uma sequência realista de eventos usando as classes
-                    // Event do window.parent (mesma origem que o alvo).
-                    const rect = el.getBoundingClientRect();
-                    const opts = {{
-                        bubbles: true, cancelable: true, view: win,
-                        clientX: rect.left + rect.width / 2,
-                        clientY: rect.top + rect.height / 2,
-                        button: 0,
-                    }};
-                    try {{ el.dispatchEvent(new win.PointerEvent('pointerdown', opts)); }} catch(e) {{}}
-                    el.dispatchEvent(new win.MouseEvent('mousedown', opts));
-                    try {{ el.dispatchEvent(new win.PointerEvent('pointerup', opts)); }} catch(e) {{}}
-                    el.dispatchEvent(new win.MouseEvent('mouseup', opts));
-                    el.dispatchEvent(new win.MouseEvent('click', opts));
-                    el.click();
-                }}
-
-                function openSidebar() {{
-                    const native = findNativeToggle();
-                    if (native) {{ fireRealClick(native); return true; }}
-                    return false;
-                }}
-
-                function ensureToggleButton() {{
-                    let btn = doc.getElementById(TOGGLE_ID);
-                    if (!btn) {{
-                        btn = doc.createElement('button');
-                        btn.id = TOGGLE_ID;
-                        btn.type = 'button';
-                        btn.setAttribute('aria-label', 'Abrir menu lateral');
-                        btn.innerHTML = '&raquo;';
-                        btn.addEventListener('click', (e) => {{
-                            e.preventDefault();
-                            e.stopPropagation();
-                            openSidebar();
-                        }});
-                        doc.body.appendChild(btn);
-                    }}
-                    return btn;
-                }}
-
-                function updateToggleVisibility() {{
-                    const btn = ensureToggleButton();
-                    const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
-                    let collapsed = true;
-                    if (sidebar) {{
-                        const rect = sidebar.getBoundingClientRect();
-                        collapsed = rect.width < 40;
-                    }}
-                    btn.classList.toggle('rm-visible', collapsed);
-                }}
-
-                function injectLogo() {{
-                    const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
-                    if (!sidebar) return;
-                    ['transform', 'visibility', 'width'].forEach(k => {{
-                        if (sidebar.style[k]) sidebar.style[k] = '';
-                    }});
-                    const existing = doc.getElementById(LOGO_ID);
-                    if (existing && existing.parentElement !== sidebar) {{
-                        existing.remove();
-                    }}
-                    let card = doc.getElementById(LOGO_ID);
-                    if (!card) {{
-                        card = doc.createElement('div');
-                        card.id = LOGO_ID;
-                        card.className = 'rm-sidebar-logo';
-                        const img = doc.createElement('img');
-                        img.src = LOGO_URI;
-                        img.alt = 'RioMobiAnalytics';
-                        card.appendChild(img);
-                    }}
-                    if (sidebar.firstChild !== card) {{
-                        sidebar.insertBefore(card, sidebar.firstChild);
-                    }}
-                }}
-
-                function tick() {{
-                    injectLogo();
-                    updateToggleVisibility();
-                }}
-
-                if (!win.__rmSidebarObserver) {{
-                    const obs = new win.MutationObserver(tick);
-                    obs.observe(doc.body, {{childList: true, subtree: true}});
-                    win.__rmSidebarObserver = obs;
-                }}
-                if (!win.__rmSidebarInterval) {{
-                    win.__rmSidebarInterval = win.setInterval(updateToggleVisibility, 500);
-                }}
-                tick();
-            }})();
-            </script>
-            """,
-            height=0,
-        )
-
-
-def render_page_header(title: str, subtitle: str = "", icon: str = "") -> None:
-    """Hero header for internal pages (not Home)."""
-    icon_html = ""
-    if icon:
-        icon_html = (
-            f"<div class='rm-page-header__icon'>{html.escape(icon)}</div>"
-        )
+def page_header(eyebrow: str, title: str, subtitle: str = "") -> None:
+    sub = f"<p class='rm-sub'>{html.escape(subtitle)}</p>" if subtitle else ""
     st.markdown(
-        f"""
-        <div class='rm-page-header'>
-            {icon_html}
-            <div>
-                <div class='rm-page-header__title'>{html.escape(title)}</div>
-                <div class='rm-page-header__subtitle'>{html.escape(subtitle)}</div>
-            </div>
-        </div>
-        """,
+        f"<div class='rm-header'><div class='rm-eyebrow'>{html.escape(eyebrow)}</div>"
+        f"<h1 class='rm-title'>{html.escape(title)}</h1>{sub}</div>",
         unsafe_allow_html=True,
     )
 
 
-def render_hero(title_html: str, subtitle: str, eyebrow: str = "",
-                logo: bool = True) -> None:
-    """Home hero with gradient. `title_html` may contain <em> for coral highlight.
+def eyebrow(text: str) -> None:
+    st.markdown(f"<div class='rm-eyebrow'>{html.escape(text)}</div>", unsafe_allow_html=True)
 
-    When ``logo`` is True and ``logo_mark.png`` exists, renders the icon-only
-    mark on the right side of the hero.
-    """
-    eyebrow_html = (
-        f"<div class='rm-hero__eyebrow'>{html.escape(eyebrow)}</div>"
-        if eyebrow else ""
-    )
-    logo_html = ""
-    if logo:
-        uri = _asset_data_uri(str(LOGO_MARK))
-        if uri:
-            logo_html = (
-                f"<div class='rm-hero__logo'>"
-                f"<img src='{uri}' alt='RioMobiAnalytics'/></div>"
-            )
+
+def section_title(title: str, hint: str = "", label: str = "") -> None:
+    lab = f"<div class='rm-eyebrow'>{html.escape(label)}</div>" if label else ""
+    hint_html = f"<p class='rm-section__hint'>{html.escape(hint)}</p>" if hint else ""
     st.markdown(
-        f"""
-        <div class='rm-hero'>
-            <div class='rm-hero__text'>
-                {eyebrow_html}
-                <div class='rm-hero__title'>{title_html}</div>
-                <div class='rm-hero__subtitle'>{html.escape(subtitle)}</div>
-            </div>
-            {logo_html}
-        </div>
-        """,
+        f"<div class='rm-section'>{lab}<h2>{html.escape(title)}</h2>{hint_html}</div>",
         unsafe_allow_html=True,
     )
 
 
-def render_kpi(label: str, value: str, hint: str = "") -> None:
-    """Custom KPI card (drop-in for st.metric with the same layout)."""
-    hint_html = (
-        f"<div class='rm-kpi__hint'>{html.escape(hint)}</div>" if hint else ""
+def stat_band(items: list[tuple[str, str]], compact: bool = False) -> None:
+    """Faixa de números separados por linhas finas. Vira 2x2 no celular."""
+    cells = "".join(
+        f"<div class='rm-stat'><div class='rm-stat__value'>{html.escape(v)}</div>"
+        f"<div class='rm-stat__label'>{html.escape(l)}</div></div>"
+        for v, l in items
     )
+    cls = "rm-band rm-band--compact" if compact else "rm-band"
+    st.markdown(f"<div class='{cls}'>{cells}</div>", unsafe_allow_html=True)
+
+
+def risk_badge(level: str | None) -> str:
+    level = normalize_level(level)
+    if level not in LEVEL_BADGE:
+        return "<span class='rm-badge rm-badge--none'>Sem nível</span>"
+    bg, fg = LEVEL_BADGE[level]
+    return f"<span class='rm-badge' style='background:{bg};color:{fg}'>{html.escape(level)}</span>"
+
+
+# Nome antigo mantido para compatibilidade.
+render_risk_badge = risk_badge
+
+
+def legend_html(items: list[tuple[str, str]]) -> str:
+    dots = "".join(
+        f"<span class='rm-legend__item'><span class='rm-dot' style='background:{c}'></span>{html.escape(t)}</span>"
+        for c, t in items
+    )
+    return f"<div class='rm-legend'>{dots}</div>"
+
+
+def level_legend() -> str:
+    return legend_html([(LEVEL_COLORS[l], l) for l in LEVELS])
+
+
+def empty_state(title: str, message: str) -> None:
     st.markdown(
-        f"""
-        <div class='rm-kpi'>
-            <div class='rm-kpi__accent'></div>
-            <div class='rm-kpi__label'>{html.escape(label)}</div>
-            <div class='rm-kpi__value'>{html.escape(value)}</div>
-            {hint_html}
-        </div>
-        """,
+        f"<div class='rm-empty'><div class='rm-empty__title'>{html.escape(title)}</div>"
+        f"<div>{html.escape(message)}</div></div>",
         unsafe_allow_html=True,
     )
 
 
-def render_risk_badge(level: str | None) -> str:
-    """Return the HTML string for a risk badge — call inside st.markdown(..., unsafe_allow_html=True)."""
-    if not level:
-        return "<span class='rm-badge rm-badge--none'>Sem risco</span>"
-    mapping = {
-        "Alto":         "rm-badge--high",
-        "Médio-Alto":   "rm-badge--med-high",
-        "Medio-Alto":   "rm-badge--med-high",
-        "Médio-Baixo":  "rm-badge--med-low",
-        "Medio-Baixo":  "rm-badge--med-low",
-        "Baixo":        "rm-badge--low",
-    }
-    cls = mapping.get(level, "rm-badge--none")
-    return f"<span class='rm-badge {cls}'>{html.escape(str(level))}</span>"
+render_empty_state = empty_state
 
 
-def render_risk_legend() -> None:
-    """Vertical legend for the risk map (4 níveis por quartis do range)."""
+def selection_chip(name: str | None) -> None:
+    if not name:
+        return
     st.markdown(
-        f"""
-        <div class='rm-legend'>
-            <div class='rm-legend__row'>
-                <span class='rm-legend__dot' style='background:{BRAND["high"]}'></span>
-                <span><strong>Alto</strong> — 4º quartil do range</span>
-            </div>
-            <div class='rm-legend__row'>
-                <span class='rm-legend__dot' style='background:{BRAND["med_high"]}'></span>
-                <span><strong>Médio-Alto</strong> — 3º quartil</span>
-            </div>
-            <div class='rm-legend__row'>
-                <span class='rm-legend__dot' style='background:{BRAND["med_low"]}'></span>
-                <span><strong>Médio-Baixo</strong> — 2º quartil</span>
-            </div>
-            <div class='rm-legend__row'>
-                <span class='rm-legend__dot' style='background:{BRAND["low"]}'></span>
-                <span><strong>Baixo</strong> — 1º quartil</span>
-            </div>
-        </div>
-        """,
+        f"<span class='rm-chip'><span class='rm-chip__dot'></span>Parada selecionada "
+        f"<b>{html.escape(name)}</b></span>",
         unsafe_allow_html=True,
     )
 
 
-def render_empty_state(title: str, message: str, icon: str = "○") -> None:
-    st.markdown(
-        f"""
-        <div class='rm-empty'>
-            <div class='rm-empty__icon'>{html.escape(icon)}</div>
-            <div class='rm-empty__title'>{html.escape(title)}</div>
-            <div>{html.escape(message)}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+def note(text: str) -> None:
+    st.markdown(f"<div class='rm-note'>{html.escape(text)}</div>", unsafe_allow_html=True)
+
+
+def plotly_layout(fig, height: int = 320, margin: dict | None = None):
+    fig.update_layout(
+        height=height,
+        margin=margin or dict(l=8, r=8, t=8, b=8),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=PLOT_FONT,
+        showlegend=False,
+        hoverlabel=dict(bgcolor="#fff", bordercolor=LINE, font=PLOT_FONT),
     )
-
-
-def render_nav_card(icon: str, title: str, description: str, page_path: str) -> None:
-    """Nav card that behaves like a page link. Uses st.page_link inside a styled container."""
-    with st.container(border=False):
-        st.markdown(
-            f"""
-            <div class='rm-nav-card'>
-                <div class='rm-nav-card__icon'>{html.escape(icon)}</div>
-                <div class='rm-nav-card__title'>{html.escape(title)}</div>
-                <div class='rm-nav-card__desc'>{html.escape(description)}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.page_link(page_path, label=f"Abrir {title} →")
-
-
-def section_title(title: str, hint: str = "") -> None:
-    hint_html = (
-        f"<span class='rm-section-title__hint'>{html.escape(hint)}</span>"
-        if hint else ""
-    )
-    st.markdown(
-        f"""
-        <div class='rm-section-title'>
-            <h2>{html.escape(title)}</h2>
-            {hint_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def get_risk_color(risk_level: str | None) -> str:
-    """Cor derivada do risk_level (Alto / Médio-Alto / Médio-Baixo / Baixo)."""
-    if not risk_level:
-        return "#8A93A3"
-    mapping = {
-        "Alto":         BRAND["high"],
-        "Médio-Alto":   BRAND["med_high"],
-        "Medio-Alto":   BRAND["med_high"],
-        "Médio-Baixo":  BRAND["med_low"],
-        "Medio-Baixo":  BRAND["med_low"],
-        "Baixo":        BRAND["low"],
-    }
-    return mapping.get(risk_level, "#8A93A3")
+    return fig

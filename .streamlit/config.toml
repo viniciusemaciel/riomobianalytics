@@ -1,10 +1,28 @@
+[server]
+enableStaticServing = true
+
 [theme]
 base = "light"
-primaryColor = "#F26A4B"
-backgroundColor = "#FAF7F2"
-secondaryBackgroundColor = "#FFFFFF"
+primaryColor = "#0B1F3A"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F6F8"
 textColor = "#0B1F3A"
-font = "sans serif"
+linkColor = "#0B1F3A"
+borderColor = "#E2E6EB"
+baseRadius = "0.6rem"
+font = "Geist"
+headingFont = "Geist"
+codeFont = "Geist Mono"
+
+[[theme.fontFaces]]
+family = "Geist"
+url = "app/static/fonts/Geist-Variable.woff2"
+weight = "100 900"
+
+[[theme.fontFaces]]
+family = "Geist Mono"
+url = "app/static/fonts/GeistMono-Variable.woff2"
+weight = "100 900"
 
 [browser]
 gatherUsageStats = false

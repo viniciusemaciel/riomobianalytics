@@ -410,3 +410,33 @@ def get_stop_features_for_model(stop_id: str):
     result["mes_sin"] = math.sin(2 * math.pi * hoje.month / 12)
     result["mes_cos"] = math.cos(2 * math.pi * hoje.month / 12)
     return result
+
+
+@st.cache_data(ttl=300)
+def get_stop_neighborhood(stop_id: str, hops: int = 3, max_edges: int = 1500):
+    """Arestas CONNECTS_TO a até `hops` paradas de distância da origem.
+
+    A distância de cada parada até a origem é calculada depois, em Python,
+    a partir das arestas devolvidas (BFS no subgrafo).
+    """
+    hops = max(1, min(int(hops), 4))
+    query = f"""
+    MATCH path = (start:Stop {{id: $stop_id}})-[:CONNECTS_TO*1..{hops}]-(:Stop)
+    UNWIND relationships(path) AS r
+    WITH DISTINCT r
+    LIMIT $max_edges
+    WITH startNode(r) AS s1, endNode(r) AS s2
+    RETURN s1.id AS source, s2.id AS target
+    """
+    data = query_neo4j(query, {"stop_id": stop_id, "max_edges": int(max_edges)})
+    return pd.DataFrame(data, columns=["source", "target"])
+
+
+@st.cache_data(ttl=300)
+def get_route_stop_ids(route_id: str) -> list:
+    """Ids das paradas atendidas por uma linha (relação SERVES)."""
+    query = """
+    MATCH (r:Route {id: $route_id})-[:SERVES]->(s:Stop)
+    RETURN s.id AS id
+    """
+    return [row["id"] for row in query_neo4j(query, {"route_id": route_id})]

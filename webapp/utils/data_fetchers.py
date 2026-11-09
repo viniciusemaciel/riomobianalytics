@@ -15,7 +15,8 @@ def get_stops_with_risk():
            COALESCE(s.risk_score_total, 0)        AS risk_score_total,
            COALESCE(s.risk_score_normalized, 0)   AS risk_score_normalized,
            s.risk_level                           AS risk_level,
-           COALESCE(s.total_reclamacoes, 0)       AS total_complaints
+           COALESCE(s.total_reclamacoes, 0)       AS total_complaints,
+           s.bairro                               AS bairro
     ORDER BY s.risk_score_normalized DESC
     """
     data = query_neo4j(query)
@@ -191,6 +192,7 @@ def get_stop_details(stop_id):
       s.name as name,
       s.lat as lat,
       s.lon as lon,
+      s.bairro as bairro,
       COALESCE(s.risk_score_total, 0) as risk_score_total,
       COALESCE(s.risk_score_atual, 0) as risk_score_atual,
       COALESCE(s.risk_score_tiroteio, 0) as risk_score_tiroteio,

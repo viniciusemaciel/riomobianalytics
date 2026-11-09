@@ -52,6 +52,13 @@ NEO4J_URI = _secret("NEO4J_URI", default="bolt://localhost:7687")
 NEO4J_USER = _secret("NEO4J_USER", "NEO4J_USERNAME", default="neo4j")
 NEO4J_PASSWORD = _secret("NEO4J_PASSWORD", default="password")
 
+# ---------------- Assistente (RAG) ----------------
+ANTHROPIC_API_KEY = _secret("ANTHROPIC_API_KEY")
+RAG_MODEL = _secret("RAG_MODEL", default="claude-haiku-5-5")
+RAG_MAX_PERGUNTAS_SESSAO = int(_secret("RAG_MAX_PERGUNTAS_SESSAO", default="30"))
+RAG_MAX_RODADAS = 6        # rodadas de ferramenta por pergunta
+RAG_MAX_HISTORICO = 10     # mensagens do histórico enviadas ao modelo
+
 # ---------------- Caminhos ----------------
 DATA_DIR = BASE_DIR / "data"
 ARTIFACTS_DIR = BASE_DIR / "artifacts"

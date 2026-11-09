@@ -14,6 +14,7 @@ venv/
 
 # Gerados pelos notebooks (recriáveis)
 data/model_dataset.parquet
+data/processed/
 
 # SO / editores
 .DS_Store

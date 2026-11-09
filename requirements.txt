@@ -5,6 +5,7 @@ folium>=0.17.0
 streamlit-folium>=0.25.0
 networkx>=3.2
 scipy>=1.11
+shapely>=2.0
 
 # Bancos
 neo4j==5.14.1
@@ -16,6 +17,9 @@ numpy>=1.26.0
 xgboost>=2.0.0
 scikit-learn>=1.9.0  # scaler.joblib foi salvo com 1.9
 joblib>=1.3.0
+
+# Assistente (RAG)
+anthropic>=0.40.0
 
 # Utilitários
 python-dotenv==1.0.0

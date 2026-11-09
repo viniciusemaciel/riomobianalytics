@@ -4,9 +4,11 @@ A interface está pronta; a resposta vem de `webapp.utils.assistente.responder`,
 que a Frente 3 (RAG) implementa.
 """
 import html
+import json
 
 import streamlit as st
 
+import config
 from webapp.utils import assistente
 from webapp.utils.data_fetchers import get_stop_details
 from webapp.utils.state import get_selected, go as go_page, set_selected
@@ -67,6 +69,11 @@ with center:
     for msg in st.session_state.chat:
         with st.chat_message(msg["role"], avatar=str(ASSETS_DIR / "logo_mark.png") if msg["role"] == "assistant" else None):
             st.markdown(msg["text"])
+            if msg.get("passos"):
+                with st.expander("Como cheguei nisso"):
+                    for p in msg["passos"]:
+                        st.markdown(f"- `{p['ferramenta']}` {json.dumps(p['argumentos'], ensure_ascii=False)}"
+                                    f"{'' if p['ok'] else ' (falhou)'} · {p['duracao_ms']} ms")
             if msg.get("fontes"):
                 st.markdown(
                     "<div class='rm-eyebrow' style='margin-top:8px'>Fontes</div>"
@@ -86,25 +93,37 @@ with center:
     if not assistente.disponivel():
         st.markdown(
             "<div style='background:#fff;border:1px solid #E2E6EB;border-left:3px solid #0B1F3A;border-radius:0;"
-            "padding:12px 16px;margin-top:14px' class='rm-muted'>O assistente ainda não está conectado. "
-            "A busca nos dados (RAG) é a próxima etapa do projeto; a interface e o contexto da parada já estão prontos.</div>",
+            "padding:12px 16px;margin-top:14px' class='rm-muted'>O assistente está desligado: falta configurar a "
+            "chave do modelo (ANTHROPIC_API_KEY). O restante do app funciona normalmente.</div>",
             unsafe_allow_html=True,
         )
 
 question = st.chat_input("Pergunte sobre paradas, linhas ou segurança no entorno") or pending
 if question:
+    historico = list(st.session_state.chat)
     st.session_state.chat.append({"role": "user", "text": question})
-    if assistente.disponivel():
-        try:
-            ans = assistente.responder(question, ctx)
-            st.session_state.chat.append({"role": "assistant", "text": ans.get("texto", ""), "fontes": ans.get("fontes", [])})
-        except Exception as e:
-            st.session_state.chat.append({"role": "assistant", "text": f"Não consegui responder agora ({e})."})
-    else:
+    if not assistente.disponivel():
         st.session_state.chat.append({
             "role": "assistant",
-            "text": "Ainda não consigo responder: o assistente será conectado aos dados na próxima etapa do projeto.",
+            "text": "O assistente está desligado: falta configurar a chave do modelo.",
         })
+    elif st.session_state.get("n_perguntas", 0) >= config.RAG_MAX_PERGUNTAS_SESSAO:
+        st.session_state.chat.append({
+            "role": "assistant",
+            "text": f"Você chegou ao limite de {config.RAG_MAX_PERGUNTAS_SESSAO} perguntas desta sessão. Recarregue a página para continuar.",
+        })
+    else:
+        st.session_state.n_perguntas = st.session_state.get("n_perguntas", 0) + 1
+        with center:
+            with st.status("Pensando...", expanded=False) as status:
+                try:
+                    ans = assistente.responder(question, ctx, historico, ao_chamar=lambda rotulo: status.update(label=rotulo))
+                    status.update(label="Pronto", state="complete")
+                    st.session_state.chat.append({"role": "assistant", "text": ans.get("texto", ""),
+                                                  "fontes": ans.get("fontes", []), "passos": ans.get("passos", [])})
+                except Exception as e:
+                    status.update(label="Não consegui responder", state="error")
+                    st.session_state.chat.append({"role": "assistant", "text": f"Não consegui responder agora: {e}"})
     st.rerun()
 
 with center:

@@ -10,6 +10,8 @@ A página `views/assistente.py` chama `responder(...)`. A lógica fica em
 """
 from __future__ import annotations
 
+import config
+
 ROTULOS_FERRAMENTA = {
     "estatisticas_gerais": "Consultando os totais do projeto...",
     "paradas_mais_criticas": "Consultando as paradas de maior índice...",
@@ -17,6 +19,7 @@ ROTULOS_FERRAMENTA = {
     "resumo_bairros": "Agrupando paradas por bairro...",
     "detalhes_parada": "Consultando os detalhes da parada...",
     "reclamacoes_parada": "Consultando as reclamações da parada...",
+    "tiroteios_parada": "Consultando os tiroteios perto da parada...",
     "resumo_reclamacoes": "Contando reclamações por categoria...",
     "metricas_linhas": "Consultando as linhas...",
     "rede_em_volta": "Consultando as paradas ligadas...",
@@ -45,6 +48,19 @@ def responder(pergunta: str, contexto: dict | None = None, historico: list[dict]
     except ErroLLM as e:
         raise RuntimeError(str(e)) from e
     return res.como_dict()
+
+
+def custo_estimado(uso: dict) -> float:
+    """US$ estimados, sem desconto de cache (por isso tende a ficar acima do real)."""
+    entrada = uso.get("entrada", 0) + uso.get("cache_leitura", 0) + uso.get("cache_escrita", 0)
+    return (entrada * config.RAG_PRECO_ENTRADA_MTOK + uso.get("saida", 0) * config.RAG_PRECO_SAIDA_MTOK) / 1_000_000
+
+
+def resumo_uso(uso: dict, rodadas: int, duracao_ms: int) -> str:
+    entrada = uso.get("entrada", 0) + uso.get("cache_leitura", 0) + uso.get("cache_escrita", 0)
+    return (f"{rodadas} rodada(s) · {duracao_ms / 1000:.1f} s · {entrada:,} tokens de entrada "
+            f"({uso.get('cache_leitura', 0):,} do cache) · {uso.get('saida', 0):,} de saída · "
+            f"~US$ {custo_estimado(uso):.4f}").replace(",", ".")
 
 
 SUGESTOES_COM_PARADA = [

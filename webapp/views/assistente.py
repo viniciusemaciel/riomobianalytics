@@ -69,9 +69,11 @@ with center:
     for msg in st.session_state.chat:
         with st.chat_message(msg["role"], avatar=str(ASSETS_DIR / "logo_mark.png") if msg["role"] == "assistant" else None):
             st.markdown(msg["text"])
-            if msg.get("passos"):
+            if msg.get("passos") or msg.get("uso"):
                 with st.expander("Como cheguei nisso"):
-                    for p in msg["passos"]:
+                    if msg.get("uso"):
+                        st.caption(assistente.resumo_uso(msg["uso"], msg.get("rodadas", 0), msg.get("duracao_ms", 0)))
+                    for p in msg.get("passos", []):
                         st.markdown(f"- `{p['ferramenta']}` {json.dumps(p['argumentos'], ensure_ascii=False)}"
                                     f"{'' if p['ok'] else ' (falhou)'} · {p['duracao_ms']} ms")
             if msg.get("fontes"):
@@ -120,7 +122,10 @@ if question:
                     ans = assistente.responder(question, ctx, historico, ao_chamar=lambda rotulo: status.update(label=rotulo))
                     status.update(label="Pronto", state="complete")
                     st.session_state.chat.append({"role": "assistant", "text": ans.get("texto", ""),
-                                                  "fontes": ans.get("fontes", []), "passos": ans.get("passos", [])})
+                                                  "fontes": ans.get("fontes", []), "passos": ans.get("passos", []),
+                                                  "uso": ans.get("uso"), "rodadas": ans.get("rodadas", 0),
+                                                  "duracao_ms": ans.get("duracao_ms", 0)})
+                    st.session_state.custo_sessao = st.session_state.get("custo_sessao", 0.0) + assistente.custo_estimado(ans.get("uso") or {})
                 except Exception as e:
                     status.update(label="Não consegui responder", state="error")
                     st.session_state.chat.append({"role": "assistant", "text": f"Não consegui responder agora: {e}"})
@@ -132,3 +137,5 @@ with center:
         "Não prevê ocorrências individuais nem recomenda rotas.</p>",
         unsafe_allow_html=True,
     )
+    if st.session_state.get("n_perguntas"):
+        st.caption(f"Sessão: {st.session_state.n_perguntas} pergunta(s) · ~US$ {st.session_state.get('custo_sessao', 0.0):.4f} estimados")

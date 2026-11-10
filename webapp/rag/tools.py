@@ -11,6 +11,10 @@ Regras comuns:
   - o app só lê o Neo4j; nada aqui toca o MongoDB;
   - erros sobem como exceção e o agente os devolve ao modelo como texto curto.
 
+Tiroteios: `tiroteios_parada` é a única ferramenta que lê o CSV do Fogo Cruzado
+(via utils/insights.py), porque as ocorrências não estão no Neo4j. Conta
+ocorrências, não vítimas, e informa sempre o período que a base cobre.
+
 Bairro: `Stop.bairro` é o bairro oficial (Limite de Bairros da Prefeitura),
 gravado por scripts/09_bairro_paradas.py. Sem ele, as ferramentas de bairro
 devolvem um erro explicando o que falta.
@@ -22,6 +26,7 @@ import unicodedata
 import pandas as pd
 
 from webapp.utils import data_fetchers as df_
+from webapp.utils import insights
 from webapp.utils.db_connections import query_neo4j, somente_leitura
 
 MAX_LINHAS = 50
@@ -179,6 +184,32 @@ def reclamacoes_parada(stop_id: str, limite=15) -> dict:
     }
 
 
+def tiroteios_parada(stop_id: str, meses=12) -> dict:
+    m = _lim(meses, 12, 36)
+    d = df_.get_stop_details(stop_id)
+    if not d:
+        raise ValueError(f"parada {stop_id} não encontrada")
+    periodo = insights.shootings_periodo()
+    serie = insights.shootings_by_month(float(d["lat"]), float(d["lon"]), 500, m)
+    if periodo is None or serie.empty:
+        raise ValueError("a base de ocorrências do Fogo Cruzado não foi encontrada")
+    por_mes = [{"mes": str(p), "ocorrencias": int(n)} for p, n in zip(serie["mes"], serie["n"])]
+    total = sum(x["ocorrencias"] for x in por_mes)
+    return {
+        "dados": {
+            "parada": d["name"], "stop_id": stop_id, "raio_metros": 500,
+            "janela": {"primeiro_mes": por_mes[0]["mes"], "ultimo_mes": por_mes[-1]["mes"], "meses": len(por_mes)},
+            "periodo_coberto_pela_base": {"primeiro_mes": periodo[0], "ultimo_mes": periodo[1]},
+            "total_ocorrencias": total,
+            "meses_com_ocorrencia": sum(1 for x in por_mes if x["ocorrencias"] > 0),
+            "por_mes": por_mes,
+            "observacao": ("Conta ocorrências do Fogo Cruzado, não vítimas. A janela termina no último mês da base, "
+                           "não em hoje. É histórico; o índice de risco é uma previsão e pode divergir da contagem."),
+        },
+        "fonte": f"Fogo Cruzado (CSV do projeto): ocorrências a até 500 m de {d['name']}, {por_mes[0]['mes']} a {por_mes[-1]['mes']}",
+    }
+
+
 def resumo_reclamacoes() -> dict:
     # Cypher próprio: get_complaints_summary lê o MongoDB, e o assistente só usa o Neo4j.
     por_servico = query_neo4j("""
@@ -254,6 +285,12 @@ DEFINICOES = [
     _tool("reclamacoes_parada",
           "Reclamações do 1746 ligadas a uma parada: total, contagem por categoria e as mais recentes.",
           {"stop_id": _STOP_ID, "limite": _LIMITE}, ["stop_id"]),
+    _tool("tiroteios_parada",
+          "Histórico de ocorrências de tiroteio (Fogo Cruzado) a até 500 m de uma parada, mês a mês. Conta ocorrências, não "
+          "vítimas, e não traz motivo nem autoria. A janela termina no último mês da base, não em hoje: cite sempre o "
+          "período devolvido. Não agrega por bairro nem por ano.",
+          {"stop_id": _STOP_ID, "meses": {"type": "integer", "description": "janela em meses, de 1 a 36 (padrão 12)"}},
+          ["stop_id"]),
     _tool("resumo_reclamacoes",
           "Contagem de reclamações do 1746 por categoria (segurança pública, iluminação etc.), no projeto todo.", {}),
     _tool("metricas_linhas",
@@ -267,7 +304,7 @@ DEFINICOES = [
 
 _FUNCOES = {f.__name__: f for f in (
     estatisticas_gerais, paradas_mais_criticas, buscar_parada, resumo_bairros, detalhes_parada,
-    reclamacoes_parada, resumo_reclamacoes, metricas_linhas, rede_em_volta)}
+    reclamacoes_parada, tiroteios_parada, resumo_reclamacoes, metricas_linhas, rede_em_volta)}
 
 
 def executar(nome: str, argumentos: dict | None = None) -> dict:

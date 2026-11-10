@@ -170,15 +170,27 @@ def load_shootings() -> pd.DataFrame:
     if not files:
         return pd.DataFrame(columns=["lat", "lon", "mes"])
     df = pd.concat(
-        [pd.read_csv(f, usecols=["latitude", "longitude", "data"]) for f in files],
+        [pd.read_csv(f, usecols=lambda c: c in {"id", "latitude", "longitude", "data"}) for f in files],
         ignore_index=True,
-    ).dropna()
+    )
+    if "id" in df.columns:  # exportações que se sobrepõem não podem contar a mesma ocorrência duas vezes
+        df = df.drop_duplicates(subset="id").drop(columns="id")
+    df = df.dropna()
     dt = pd.to_datetime(df["data"], format="%d/%m/%Y, %H:%M:%S", errors="coerce")
     return pd.DataFrame({
         "lat": df["latitude"].astype(float),
         "lon": df["longitude"].astype(float),
         "mes": dt.dt.to_period("M"),
     }).dropna()
+
+
+@st.cache_data(show_spinner=False)
+def shootings_periodo() -> tuple[str, str] | None:
+    """Primeiro e último mês (AAAA-MM) com ocorrências na base do Fogo Cruzado."""
+    df = load_shootings()
+    if df.empty:
+        return None
+    return str(df["mes"].min()), str(df["mes"].max())
 
 
 @st.cache_data(show_spinner=False)

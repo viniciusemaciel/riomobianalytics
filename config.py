@@ -58,6 +58,8 @@ RAG_MODEL = _secret("RAG_MODEL", default="claude-haiku-5-5")
 RAG_MAX_PERGUNTAS_SESSAO = int(_secret("RAG_MAX_PERGUNTAS_SESSAO", default="30"))
 RAG_MAX_RODADAS = 6        # rodadas de ferramenta por pergunta
 RAG_MAX_HISTORICO = 10     # mensagens do histórico enviadas ao modelo
+RAG_PRECO_ENTRADA_MTOK = float(_secret("RAG_PRECO_ENTRADA_MTOK", default="0.10"))  # US$ por 1M tokens (estimativa)
+RAG_PRECO_SAIDA_MTOK = float(_secret("RAG_PRECO_SAIDA_MTOK", default="0.50"))
 
 # ---------------- Caminhos ----------------
 DATA_DIR = BASE_DIR / "data"

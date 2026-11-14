@@ -18,10 +18,13 @@ from webapp.utils.state import ask_about, get_selected, go as go_page, set_selec
 from webapp.utils.theme import (
     CATEGORY_COLORS, LEVEL_COLORS, LEVELS, LINE, MUTED, NAVY, NO_LEVEL_COLOR,
     ORANGE, empty_state, fmt_int, get_risk_color, legend_html, level_legend,
-    normalize_level, note, plotly_layout, risk_badge, selection_chip, stat_band,
+    normalize_level, note, page_header, plotly_layout, risk_badge, selection_chip, stat_band,
 )
 
 LAYERS = ["Índice de risco", "Tiroteio", "Reclamações"]
+# Altura do mapa: igual à do painel da parada ao lado (com e sem parada selecionada).
+MAP_H_SEL = 735
+MAP_H = 470
 TIRO_BINS = [(0.70, "≥ 70"), (0.50, "50 a 69"), (0.25, "25 a 49"), (0.0, "< 25")]
 
 
@@ -76,9 +79,24 @@ def complaints_geojson(df: pd.DataFrame) -> dict:
     return {"type": "FeatureCollection", "features": feats}
 
 
-def build_map(fc: dict) -> folium.Map:
+def legend_overlay(items: list[tuple[str, str]], texto: str) -> str:
+    """Legenda desenhada dentro do mapa, no canto inferior esquerdo (não ocupa espaço na página)."""
+    dots = "".join(
+        f"<span style='display:inline-flex;align-items:center;gap:6px;margin-right:12px;white-space:nowrap'>"
+        f"<span style='width:10px;height:10px;border-radius:50%;background:{c};display:inline-block'></span>{html.escape(t)}</span>"
+        for c, t in items)
+    return (f"<div style='position:absolute;left:12px;bottom:14px;z-index:999;background:rgba(255,255,255,.96);"
+            f"border:1px solid {LINE};border-radius:10px;padding:9px 13px;max-width:calc(100% - 90px);"
+            f"font:13px Geist,Inter,-apple-system,sans-serif;color:#3C4A5D;line-height:1.5'>"
+            f"<div style='display:flex;flex-wrap:wrap;row-gap:2px'>{dots}</div>"
+            f"<div style='font-size:12px;color:#647185;margin-top:3px'>{html.escape(texto)}</div></div>")
+
+
+def build_map(fc: dict, legenda: str = "") -> folium.Map:
     m = folium.Map(location=RIO_CENTER, zoom_start=11, tiles=None, prefer_canvas=True, control_scale=False)
     tiles_layer(m)
+    if legenda:
+        m.get_root().html.add_child(folium.Element(legenda))
     folium.GeoJson(
         fc,
         name="dados",
@@ -268,17 +286,31 @@ try:
 except Exception:
     stats = {}
 
-selection_chip(stops_all.loc[stops_all["id"] == sel_id, "name"].iloc[0]
-               if sel_id and (stops_all["id"] == sel_id).any() else None)
+h1, h2 = st.columns([3, 1.4], vertical_alignment="bottom")
+with h1:
+    page_header("Mapa", "Índice de risco por parada")
+with h2:
+    sel_nome = (stops_all.loc[stops_all["id"] == sel_id, "name"].iloc[0]
+                if sel_id and (stops_all["id"] == sel_id).any() else None)
+    if sel_nome:
+        st.markdown(f"<div style='text-align:right;margin-bottom:1.25rem'><span class='rm-chip'><span class='rm-chip__dot'></span>"
+                    f"Parada selecionada <b>{html.escape(sel_nome)}</b></span></div>", unsafe_allow_html=True)
 stat_band([
     (fmt_int(stats.get("total_stops", len(stops_all))), "paradas"),
     (fmt_int(stats.get("total_routes")), "linhas"),
     (fmt_int((stops_all["risk_level"] == "Alto").sum()), "nível alto"),
     (fmt_int(stats.get("total_complaints")), "reclamações 1746"),
-], compact=True)
+], slim=True, accent=2)
+
+# ---------- Mapa + painel ----------
+# O mapa fica num cartão com a barra (busca, camada, filtros) em cima, e tem a altura do
+# painel ao lado: assim não sobra espaço vazio embaixo do mapa.
+col_map, col_panel = st.columns([2.3, 1], gap="medium")
+card_mapa = col_map.container(border=True, key="card_mapa")
+barra = card_mapa.container()
 
 # ---------- Barra de ferramentas ----------
-t1, t2, t3 = st.columns([2.2, 2.2, 1], vertical_alignment="bottom")
+t1, t2, t3 = barra.columns([1.7, 2.4, 0.9], vertical_alignment="center")
 with t1:
     named = stops_all[stops_all["name"].notna()].sort_values("name")
     options = named["id"].tolist()
@@ -330,10 +362,7 @@ if route_sel != "Todas":
 if min_rec:
     stops_df = stops_df[stops_df["total_complaints"] >= min_rec]
 
-# ---------- Mapa + painel ----------
-col_map, col_panel = st.columns([2.3, 1], gap="medium")
-
-with col_map:
+with card_mapa:
     if layer == "Reclamações":
         try:
             comp = get_complaints_by_location()
@@ -350,8 +379,19 @@ with col_map:
         center, zoom = [sel_row["lat"], sel_row["lon"]], 14
         st.session_state["map_center"] = None
 
+    if layer == "Tiroteio":
+        cols = [LEVEL_COLORS["Baixo"], LEVEL_COLORS["Médio-Baixo"], LEVEL_COLORS["Médio-Alto"], LEVEL_COLORS["Alto"]]
+        legenda = legend_overlay(list(zip(cols, [f"score {l}" for _, l in reversed(TIRO_BINS)])),
+                                 "Score de tiroteio do modelo (0 a 100), raio de 500 m. Não é probabilidade.")
+    elif layer == "Reclamações":
+        legenda = legend_overlay([(c, n) for n, c in CATEGORY_COLORS.items()],
+                                 "Até 1.000 reclamações da Central 1746. Clique num ponto para ver o protocolo.")
+    else:
+        legenda = legend_overlay([(LEVEL_COLORS[l], l) for l in LEVELS],
+                                 f"{fmt_int(len(stops_df))} paradas · índice de 0 a 100")
+
     out = st_folium(
-        build_map(fc), key="mapa", height=520, use_container_width=True,
+        build_map(fc, legenda), key="mapa", height=MAP_H_SEL if sel_id else MAP_H, use_container_width=True,
         feature_group_to_add=highlight_group(sel_row),
         center=center, zoom=zoom,
         returned_objects=["last_active_drawing"],
@@ -366,19 +406,8 @@ with col_map:
             set_selected(cid)
         st.rerun()
 
-    if layer == "Tiroteio":
-        cols = [LEVEL_COLORS["Baixo"], LEVEL_COLORS["Médio-Baixo"], LEVEL_COLORS["Médio-Alto"], LEVEL_COLORS["Alto"]]
-        st.markdown(legend_html(list(zip(cols, [f"score {l}" for _, l in reversed(TIRO_BINS)]))), unsafe_allow_html=True)
-        note("Score de tiroteio do modelo XGBoost (0 a 100) para o raio de 500 m de cada parada. Ordena paradas, não é probabilidade.")
-    elif layer == "Reclamações":
-        st.markdown(legend_html([(c, n) for n, c in CATEGORY_COLORS.items()]), unsafe_allow_html=True)
-        note("Até 1.000 reclamações da Central 1746, coloridas por categoria. Clique num ponto para ver o protocolo abaixo.")
-    else:
-        st.markdown(level_legend(), unsafe_allow_html=True)
-        note(f"{fmt_int(len(stops_df))} paradas exibidas. O índice vai de 0 a 100 e combina reclamações e o modelo de tiroteio.")
-
 with col_panel:
-    with st.container(border=True):
+    with st.container(border=True, key="card_painel"):
         if sel_id:
             render_panel(sel_id, stops_all)
         else:

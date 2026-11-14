@@ -59,8 +59,12 @@ if origin not in info:
 page_header("Rede de ônibus", f"Vizinhança de {info[origin]['name']}",
             "Cada ponto é uma parada. Duas paradas estão ligadas quando uma linha passa por elas em sequência.")
 
+# ---------- Layout: grafo num cartão com os controles em cima; painel ao lado ----------
+col_g, col_p = st.columns([2.3, 1], gap="medium")
+card_g = col_g.container(border=True, key="card_grafo")
+
 # ---------- Controles ----------
-c1, c2, c3 = st.columns([2.4, 1.6, 1], vertical_alignment="bottom")
+c1, c2, c3 = card_g.columns([2.4, 1.6, 1], vertical_alignment="bottom")
 with c1:
     named = stops_all.sort_values("name")
     ids = named["id"].tolist()
@@ -141,15 +145,13 @@ fig.update_xaxes(visible=False, range=[-lim - (0.9 if show_names else 0), lim + 
 fig.update_yaxes(visible=False, range=[-lim, lim], scaleanchor="x", scaleratio=1)
 fig.update_layout(dragmode="pan")
 
-col_g, col_p = st.columns([2.3, 1], gap="medium")
-with col_g:
-    with st.container(border=True):
-        st.markdown(level_legend(), unsafe_allow_html=True)
-        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False, "scrollZoom": True}, key="grafo")
+with card_g:
+    st.markdown(level_legend(), unsafe_allow_html=True)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False, "scrollZoom": True}, key="grafo")
     note("Arraste para mover e use a rolagem para aproximar. A cor de cada parada é o nível do índice de risco.")
 
 with col_p:
-    with st.container(border=True):
+    with st.container(border=True, key="card_vizinhanca"):
         vals = [info[n]["risk_score_normalized"] or 0 for n in G.nodes if n in info]
         hood = sum(vals) / len(vals) if vals else 0
         city = float(stops_all["risk_score_normalized"].mean())

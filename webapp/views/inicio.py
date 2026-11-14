@@ -123,14 +123,14 @@ cards = [
 cols = st.columns(3, gap="medium")
 for col, (title, desc, art, page) in zip(cols, cards):
     with col:
-        with st.container(border=True):
+        with st.container(border=True, key=f"card_home_{page}"):
             art_html = art if art else map_card_art()
             st.markdown(
                 f"<div class='rm-card-art'>{art_html}</div>"
                 f"<div class='rm-card-title'>{title}</div><div class='rm-card-desc'>{desc}</div>",
                 unsafe_allow_html=True,
             )
-            if st.button(f"Abrir {title.lower()} →", key=f"card_{page}", width="stretch"):
+            if st.button(f"Abrir {title.lower()} →", key=f"abrir_{page}", width="stretch"):
                 go_page(page)
 
 st.markdown(

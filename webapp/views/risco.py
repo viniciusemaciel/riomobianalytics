@@ -77,7 +77,7 @@ if m:
     cols = st.columns(4)
     for col, (v, l, h) in zip(cols, kpis):
         with col:
-            with st.container(border=True):
+            with st.container(border=True, key=f"card_kpi_{l}"):
                 st.markdown(
                     f"<div class='rm-muted'>{l}</div><div style='font-size:2rem;font-weight:500;letter-spacing:-.03em;"
                     f"margin:2px 0 4px'>{v}</div><div class='rm-muted' style='font-size:.82rem;min-height:2.6em'>{h}</div>",
@@ -89,7 +89,7 @@ if m:
     # ---------- Gráficos ----------
     g1, g2 = st.columns(2, gap="medium")
     with g1:
-        with st.container(border=True):
+        with st.container(border=True, key="card_decis"):
             dec = pd.DataFrame(m["deciles"])
             top = dec["taxa"].iloc[-1] * 100
             st.markdown(
@@ -113,7 +113,7 @@ if m:
                              tickfont=dict(color=MUTED, size=11))
             st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
     with g2:
-        with st.container(border=True):
+        with st.container(border=True, key="card_importancia"):
             imp = feature_importance()[:8]
             loc = sum(v for n, _, v in feature_importance() if n in ("lat", "lon")) * 100
             st.markdown(

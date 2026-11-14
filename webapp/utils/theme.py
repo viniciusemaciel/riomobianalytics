@@ -28,10 +28,12 @@ NAVY = "#0B1F3A"
 NAVY_SOFT = "#1B3457"
 ORANGE = "#F26A4B"
 CREAM = "#FAF7F2"
-TEXT_2 = "#566579"
-MUTED = "#8C97A6"
-LINE = "#E2E6EB"
-SUNKEN = "#F4F6F8"
+TEXT_2 = "#3C4A5D"
+MUTED = "#647185"
+LINE = "#D6DCE4"
+SUNKEN = "#EEF1F5"
+CANVAS = "#F2F4F7"   # fundo das páginas; cartões em branco por cima
+ORANGE_INK = "#C24A2B"  # laranja para texto pequeno (contraste melhor que o ORANGE)
 
 LEVELS = ["Baixo", "Médio-Baixo", "Médio-Alto", "Alto"]
 
@@ -97,13 +99,14 @@ def fmt_dec(value, digits: int = 2) -> str:
 
 
 @st.cache_data(show_spinner=False)
-def _read_css() -> str:
+def _read_css(mtime: float) -> str:
+    # `mtime` entra na chave do cache: um style.css novo (deploy) é relido sem precisar de reboot.
     return STYLE_CSS.read_text(encoding="utf-8") if STYLE_CSS.exists() else ""
 
 
 def apply_theme() -> None:
     """Injeta o CSS compartilhado. Chamado uma vez por execução no roteador."""
-    css = _read_css()
+    css = _read_css(STYLE_CSS.stat().st_mtime if STYLE_CSS.exists() else 0.0)
     if css:
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
@@ -130,14 +133,17 @@ def section_title(title: str, hint: str = "", label: str = "") -> None:
     )
 
 
-def stat_band(items: list[tuple[str, str]], compact: bool = False) -> None:
-    """Faixa de números separados por linhas finas. Vira 2x2 no celular."""
+def stat_band(items: list[tuple[str, str]], compact: bool = False, slim: bool = False, accent: int | None = None) -> None:
+    """Faixa de números separados por linhas finas, num cartão branco. Vira 2x2 no celular.
+
+    `slim`: versão mais baixa (telas de trabalho, como o Mapa). `accent`: posição do número em laranja.
+    """
     cells = "".join(
-        f"<div class='rm-stat'><div class='rm-stat__value'>{html.escape(v)}</div>"
+        f"<div class='rm-stat'><div class='rm-stat__value{' rm-stat__value--accent' if i == accent else ''}'>{html.escape(v)}</div>"
         f"<div class='rm-stat__label'>{html.escape(l)}</div></div>"
-        for v, l in items
+        for i, (v, l) in enumerate(items)
     )
-    cls = "rm-band rm-band--compact" if compact else "rm-band"
+    cls = "rm-band rm-band--compact" if compact else ("rm-band rm-band--slim" if slim else "rm-band")
     st.markdown(f"<div class='{cls}'>{cells}</div>", unsafe_allow_html=True)
 
 

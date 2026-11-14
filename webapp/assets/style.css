@@ -10,11 +10,13 @@
     --rm-navy-soft: #1B3457;
     --rm-orange: #F26A4B;
     --rm-cream: #FAF7F2;
-    --rm-text-2: #566579;
-    --rm-muted: #8C97A6;
-    --rm-line: #E2E6EB;
-    --rm-line-strong: #CBD2DA;
-    --rm-sunken: #F4F6F8;
+    --rm-text-2: #3C4A5D;
+    --rm-muted: #647185;
+    --rm-line: #D6DCE4;
+    --rm-line-strong: #C3CBD6;
+    --rm-sunken: #EEF1F5;
+    --rm-canvas: #F2F4F7;
+    --rm-orange-ink: #C24A2B;
     --rm-radius: 12px;
     --rm-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
     --rm-sans: "Geist", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -216,39 +218,53 @@ iframe[title="streamlit_folium.st_folium"] { border-radius: var(--rm-radius); bo
     .rm-periods > div { border-radius: 8px !important; }
 }
 .rm-periods { display: flex; gap: 2px; margin: 0 0 16px; }
-.rm-periods > div { padding: 8px 12px; font-size: 12.5px; background: #E6EAF0; }
+.rm-periods > div { padding: 9px 14px; font-size: 13.5px; background: #DDE3EA; color: var(--rm-navy); }
 
 /* ---------- Assistente ---------- */
-/* Coluna única e estreita, centrada; a caixa de pergunta acompanha (largura no próprio views/assistente.py). */
-.st-key-rm_assist { max-width: 760px; margin: 0 auto; }
-.st-key-rm_assist .rm-header { margin-bottom: 0.9rem; }
-.st-key-rm_barra { margin-bottom: 0.4rem; }
-.st-key-rm_barra [data-testid="stPopover"] button { min-height: 32px; padding: 2px 12px; font-size: 13px; border-color: var(--rm-line-strong) !important; background: #fff !important; }
-.rm-gap { margin: 1.4rem 0 0.6rem; }
+/* Coluna única, estreita e centrada; a caixa de baixo acompanha (largura em views/assistente.py). */
+.st-key-rm_assist { max-width: 800px; margin: 0 auto; }
+.st-key-rm_aj { align-items: flex-end; padding-top: 1.6rem; }
+.st-key-rm_aj [data-testid="stPopover"] button, .st-key-rm_topo [data-testid="stPopover"] button {
+    border-color: var(--rm-line-strong) !important; background: #fff !important; font-size: 13.5px; min-height: 36px; white-space: nowrap; }
+.rm-gap { margin: 1.8rem 0 0.4rem; }
+.rm-assist-titulo { font-size: 1.3rem; font-weight: 600; color: var(--rm-navy); letter-spacing: -0.02em; }
+.st-key-rm_topo { margin-bottom: 0.6rem; }
+.st-key-rm_topo .stButton > button { min-height: 36px; font-size: 13.5px; }
 
-/* Seletor de tema: pílulas discretas, a escolhida em azul-marinho. */
-.st-key-rm_assist [data-testid="stButtonGroup"] { gap: 6px; flex-wrap: wrap; }
-.st-key-rm_assist [data-testid="stButtonGroup"] button,
-[data-testid="stPopoverBody"] [data-testid="stButtonGroup"] button { border-radius: 999px !important; border: 1px solid var(--rm-line-strong) !important; background: #fff !important; color: var(--rm-text-2) !important; font-size: 13px; padding: 4px 14px; min-height: 32px; }
-.st-key-rm_assist [data-testid="stButtonGroup"] button[aria-checked="true"],
-[data-testid="stPopoverBody"] [data-testid="stButtonGroup"] button[aria-checked="true"] { background: var(--rm-navy) !important; border-color: var(--rm-navy) !important; color: #fff !important; }
-.st-key-rm_assist [data-testid="stButtonGroup"] button p { font-weight: 500 !important; }
-.st-key-rm_assist [data-testid="stButtonGroup"] button,
-[data-testid="stPopoverBody"] [data-testid="stButtonGroup"] button { margin: 0 6px 6px 0 !important; }
-.rm-tema-desc { color: var(--rm-text-2) !important; font-size: 0.9rem; line-height: 1.5; margin: 0.15rem 0 0.55rem !important; }
+/* Cartão da pergunta: contexto em cima e a caixa de texto embaixo. */
+.st-key-card_pergunta { padding: 14px 16px 16px !important; margin-top: 0.4rem; }
+.st-key-card_pergunta [data-testid="stChatInput"] { border: 1px solid var(--rm-line) !important; background: #FBFCFD !important; border-radius: 10px !important; }
+.st-key-card_pergunta [data-testid="stChatInput"] textarea { font-size: 16px !important; }
+.st-key-card_pergunta [data-testid="stChatInputSubmitButton"] { background: var(--rm-navy) !important; color: #fff !important; border-radius: 50% !important; }
+.st-key-card_pergunta .stButton > button[kind="tertiary"], .st-key-rm_topo .stButton > button[kind="tertiary"] { font-size: 13px; }
 
-/* Perguntas de exemplo: linhas brancas com seta, alinhadas à esquerda. */
-[class*="st-key-"][class*="_perguntas"] .stButton > button {
-    justify-content: flex-start; text-align: left; border-radius: 10px !important;
-    border: 1px solid var(--rm-line) !important; background: #fff !important; color: var(--rm-navy) !important;
-    padding: 10px 40px 10px 14px; min-height: 0; position: relative; font-weight: 450 !important;
-}
-[class*="st-key-"][class*="_perguntas"] .stButton > button > div { width: 100%; justify-content: flex-start; }
-[class*="st-key-"][class*="_perguntas"] .stButton > button p { font-weight: 450 !important; font-size: 0.93rem; text-align: left; }
-[class*="st-key-"][class*="_perguntas"] .stButton > button::after { content: "→"; position: absolute; right: 14px; color: var(--rm-muted); }
-[class*="st-key-"][class*="_perguntas"] .stButton > button:hover { border-color: var(--rm-navy) !important; }
-[class*="st-key-"][class*="_perguntas"] .stButton > button:hover::after { color: var(--rm-navy); }
-[class*="st-key-"][class*="_perguntas"] [data-testid="stVerticalBlock"] { gap: 0.45rem; }
+/* Temas como abas: texto, sublinhado laranja na aba ativa, linha fina embaixo. */
+[class*="_temas"] [data-testid="stButtonGroup"] > div { gap: 26px !important; border-bottom: 1px solid var(--rm-line); flex-wrap: wrap; row-gap: 0; }
+[class*="_temas"] [data-testid="stButtonGroup"] button[aria-checked] { background: transparent !important; border: 0 !important; border-radius: 0 !important;
+    padding: 8px 0 10px !important; min-height: 0 !important; box-shadow: none !important; margin-bottom: -1px !important; border-bottom: 2px solid transparent !important; }
+[class*="_temas"] [data-testid="stButtonGroup"] button[aria-checked] p { color: var(--rm-text-2) !important; font-size: 15px; font-weight: 450 !important; }
+[class*="_temas"] [data-testid="stButtonGroup"] button[aria-checked="true"] { border-bottom-color: var(--rm-orange) !important; background: transparent !important; }
+[class*="_temas"] [data-testid="stButtonGroup"] button[aria-checked="true"] p { color: var(--rm-navy) !important; font-weight: 600 !important; }
+.rm-tema-desc { color: var(--rm-text-2) !important; font-size: 0.9rem; line-height: 1.5; margin: 0 0 2px !important; padding-bottom: 10px; border-bottom: 1px solid var(--rm-line); }
+
+/* Perguntas de exemplo: linhas de um único cartão, separadas por linhas finas, seta laranja. */
+[class*="_perguntas"] { padding: 14px 18px 4px !important; gap: 0 !important; background: #fff; border: 1px solid var(--rm-line); border-radius: 14px; margin-top: 12px; }
+[class*="_perguntas"] [data-testid="stElementContainer"]:last-child .stButton > button { border-bottom: 0 !important; }
+[class*="_perguntas"] .stButton > button {
+    justify-content: flex-start; text-align: left; border: 0 !important; border-bottom: 1px solid var(--rm-line) !important;
+    border-radius: 0 !important; background: transparent !important; color: var(--rm-navy) !important;
+    padding: 14px 32px 14px 0 !important; min-height: 0; position: relative; box-shadow: none !important; }
+[class*="_perguntas"] .stButton > button > div { width: 100%; justify-content: flex-start; }
+[class*="_perguntas"] .stButton > button p { font-weight: 450 !important; font-size: 0.97rem; text-align: left; }
+[class*="_perguntas"] .stButton > button::after { content: "→"; position: absolute; right: 2px; color: var(--rm-orange-ink); }
+[class*="_perguntas"] .stButton > button:hover p { text-decoration: underline; text-underline-offset: 3px; }
+
+/* "O que o assistente sabe": link discreto que abre o painel. */
+.st-key-rm_sabe { margin-top: 0.6rem; }
+.st-key-rm_sabe [data-testid="stPopover"] button { padding: 0 !important; min-height: 0 !important; border: 0 !important; background: transparent !important; }
+.st-key-rm_sabe [data-testid="stPopover"] button p { color: var(--rm-text-2) !important; text-decoration: underline; text-underline-offset: 3px; font-size: 14px; }
+[data-testid="stPopoverBody"]:has(.rm-know) { width: min(620px, 92vw) !important; }
+[data-testid="stPopoverBody"]:has([class*="pop_perguntas"]) { width: min(620px, 92vw) !important; }
 
 /* Painel "O que o assistente sabe". */
 .rm-know .rm-eyebrow { margin: 14px 0 6px; }
@@ -256,39 +272,118 @@ iframe[title="streamlit_folium.st_folium"] { border-radius: var(--rm-radius); bo
 .rm-know__list { list-style: none; margin: 0; padding: 0; }
 .rm-know__list li { display: flex; gap: 10px; padding: 6px 0; border-top: 1px solid var(--rm-line); font-size: 13.5px; color: var(--rm-navy); line-height: 1.45; }
 .rm-know__list li:first-child { border-top: 0; }
-.rm-know__list li b { font-weight: 550; flex: 0 0 38%; }
+.rm-know__list li b { font-weight: 600; flex: 0 0 38%; }
 .rm-know__list li span { color: var(--rm-text-2); }
 .rm-know__list--no li { color: var(--rm-text-2); }
 .rm-know__list--no li::before { content: "—"; color: var(--rm-muted); }
 .rm-know__p { color: var(--rm-text-2) !important; font-size: 13px; line-height: 1.55; margin: 2px 0 0 !important; }
 
-/* Mensagens: a do usuário num cartão branco; a do assistente direto no fundo creme. */
-.st-key-rm_assist [data-testid="stChatMessage"] { padding: 0.75rem 0.25rem; gap: 0.75rem; }
-.st-key-rm_assist [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarCustom"]) {
-    background: #fff; border: 1px solid var(--rm-line); border-radius: var(--rm-radius); padding: 0.6rem 0.9rem; margin: 0.6rem 0;
-}
-.st-key-rm_assist [data-testid="stChatMessage"] [data-testid="stExpander"] details { background: transparent; border-color: var(--rm-line) !important; }
-.st-key-rm_assist [data-testid="stChatMessage"] [data-testid="stExpander"] summary p { font-size: 13px; color: var(--rm-text-2); font-weight: 450; }
+/* Conversa: pergunta num balão azul-marinho à direita; resposta num cartão branco. */
+.rm-bolha-linha { display: flex; justify-content: flex-end; margin: 1.1rem 0 0.4rem; }
+.rm-bolha { background: var(--rm-navy); color: #fff; border-radius: 14px 14px 4px 14px; padding: 11px 16px; font-size: 15.5px; line-height: 1.5; max-width: 78%; }
+.rm-bolha__sub { font-size: 12px; color: #B9C6D8; margin-top: 3px; }
+.st-key-rm_assist [data-testid="stChatMessage"] { padding: 0; gap: 12px; background: transparent; margin: 0.5rem 0; }
+.st-key-rm_assist [data-testid="stChatMessageContent"] { background: #fff; border: 1px solid var(--rm-line); border-radius: 14px; padding: 16px 20px 12px; }
+.st-key-rm_assist [data-testid="stChatMessageContent"] p { font-size: 15.5px; line-height: 1.65; }
+.st-key-rm_assist [data-testid="stChatMessageAvatarImage"] { background: #fff; border: 1px solid var(--rm-line); border-radius: 50%; padding: 4px; }
+.st-key-rm_assist [data-testid="stChatMessage"] [data-testid="stExpander"] details { background: transparent !important; border: 0 !important; }
+.st-key-rm_assist [data-testid="stChatMessage"] [data-testid="stExpander"] summary { padding-left: 0; }
+.st-key-rm_assist [data-testid="stChatMessage"] [data-testid="stExpander"] summary p { font-size: 13px; color: var(--rm-muted); font-weight: 450 !important; }
 
-/* Fontes: lista curta e discreta, cada uma em uma linha. */
-.rm-fontes { margin: 10px 0 6px; }
-.rm-fontes ul { list-style: none; margin: 4px 0 0; padding: 0; }
-.rm-fontes li { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; color: var(--rm-text-2); padding: 2px 0; min-width: 0; }
+/* Fontes: lista curta, uma por linha. */
+.rm-fontes { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--rm-line); }
+.rm-fontes ul { list-style: none; margin: 6px 0 0; padding: 0; }
+.rm-fontes li { display: flex; gap: 8px; align-items: baseline; font-size: 13px; color: var(--rm-text-2); padding: 2px 0; min-width: 0; }
 .rm-fontes__n { font-family: var(--rm-mono); font-size: 11px; color: var(--rm-navy); border: 1px solid var(--rm-line-strong); border-radius: 5px; padding: 0 5px; flex: none; }
 .rm-fontes__t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
-.st-key-rm_mais { margin-top: 0.4rem; }
-.st-key-rm_mais [data-testid="stPopover"] button { border-color: var(--rm-line-strong) !important; background: #fff !important; font-size: 13px; }
-[data-testid="stPopoverBody"]:has([class*="pop_perguntas"]) { width: min(560px, 92vw) !important; }
+.st-key-rm_mais { margin: 0.6rem 0 0 46px; }
+[data-testid="stBottom"] [data-testid="stChatInput"] { background: #fff !important; border: 1px solid var(--rm-line) !important; }
+[class*="_perguntas"] [data-testid="stElementContainer"]:nth-child(2) .stButton > button { padding-top: 16px !important; }
+.st-key-rm_mais [data-testid="stPopover"] button { border-color: var(--rm-line-strong) !important; background: #fff !important; font-size: 13.5px; }
 
-.rm-off { background: #fff; border: 1px solid var(--rm-line); border-left: 3px solid var(--rm-navy); padding: 12px 16px; margin: 0.6rem 0; color: var(--rm-text-2); font-size: 0.9rem; }
-.rm-assist-foot { text-align: center; color: var(--rm-muted) !important; font-size: 12.5px; margin: 1.6rem 0 0 !important; }
+.rm-off { background: #fff; border: 1px solid var(--rm-line); border-left: 3px solid var(--rm-navy); padding: 12px 16px; margin: 0.6rem 0; color: var(--rm-text-2); font-size: 0.9rem; border-radius: 0 10px 10px 0; }
+.rm-assist-foot { text-align: center; color: var(--rm-muted) !important; font-size: 13px; margin: 2.4rem 0 0 !important; }
 
 @media (max-width: 640px) {
-    .st-key-rm_barra [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: 8px !important; }
-    .st-key-rm_barra [data-testid="stColumn"] { min-width: 0 !important; width: auto !important; flex: 0 0 auto !important; }
-    .st-key-rm_barra [data-testid="stColumn"]:first-child { flex: 1 1 auto !important; overflow: hidden; }
-    .st-key-rm_barra .rm-chip { max-width: 100%; overflow: hidden; white-space: nowrap; }
+    .st-key-rm_topo [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: 8px !important; }
+    .st-key-rm_topo [data-testid="stColumn"] { min-width: 0 !important; width: auto !important; flex: 0 0 auto !important; }
+    .st-key-rm_topo [data-testid="stColumn"]:first-child { flex: 1 1 auto !important; }
+    .st-key-card_pergunta [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; }
+    .st-key-card_pergunta [data-testid="stColumn"] { min-width: 0 !important; width: auto !important; }
+    .st-key-card_pergunta [data-testid="stColumn"]:first-child { flex: 1 1 auto !important; overflow: hidden; }
+    .rm-chip { max-width: 100%; overflow: hidden; white-space: nowrap; }
+    .st-key-rm_aj { padding-top: 0; }
+    [class*="_temas"] [data-testid="stButtonGroup"] > div { gap: 18px !important; }
+    .rm-bolha { max-width: 90%; }
+    .st-key-rm_mais { margin-left: 0; }
     .rm-know__list li { flex-direction: column; gap: 0; }
     .rm-know__list--no li { flex-direction: row; gap: 8px; }
+}
+
+/* ======================================================================
+   Redesign v2 (contraste): fundo cinza-claro, cartões brancos com borda,
+   textos secundários mais escuros e laranja só em pontos de destaque.
+   ====================================================================== */
+[data-testid="stAppViewContainer"], [data-testid="stMain"] { background: var(--rm-canvas) !important; }
+[data-testid="stBottomBlockContainer"], [data-testid="stBottom"] > div { background: var(--rm-canvas) !important; }
+[data-testid="stHeader"] { background: #fff !important; border-bottom: 1px solid var(--rm-line); }
+
+/* Menu do topo: sem pílula cinza; a página ativa ganha sublinhado laranja (definido em Home.py). */
+[data-testid="stTopNavLink"] { border-radius: 0 !important; background: transparent !important; }
+[data-testid="stTopNavLink"] span { background: transparent !important; color: var(--rm-text-2) !important; }
+[data-testid="stTopNavLink"]:hover span { color: var(--rm-navy) !important; }
+
+/* Rótulo de página e de seção com um traço laranja na frente. */
+.rm-header > .rm-eyebrow, .rm-section > .rm-eyebrow { display: flex; align-items: center; gap: 8px; }
+.rm-header > .rm-eyebrow::before, .rm-section > .rm-eyebrow::before { content: ""; width: 14px; height: 2px; background: var(--rm-orange); flex: none; }
+.rm-title { font-weight: 500 !important; }
+.rm-section h2 { font-weight: 500 !important; }
+
+/* Cartões: todo st.container(border=True, key="card_...") fica branco sobre o fundo cinza. */
+[class*="st-key-card"] { background: #fff !important; border-color: var(--rm-line) !important; border-radius: 14px !important; }
+[data-testid="stExpander"] details { background: #fff !important; border-color: var(--rm-line) !important; }
+[data-testid="stExpander"] summary p { font-weight: 500 !important; color: var(--rm-navy); }
+
+/* Faixa de números: cartão branco. */
+.rm-band { background: #fff !important; border-color: var(--rm-line) !important; }
+.rm-stat { border-left-color: var(--rm-line) !important; }
+.rm-band--slim { padding: 14px 0 !important; }
+.rm-band--slim .rm-stat__value { font-size: 1.55rem; font-weight: 500; }
+.rm-stat__value--accent { color: var(--rm-orange-ink) !important; }
+
+/* Passos numerados: cartões sem setas, número em laranja. */
+.rm-flow { gap: 14px !important; }
+.rm-flow__arrow { display: none !important; }
+.rm-flow__step { border-color: var(--rm-line) !important; }
+.rm-flow__step--accent { border-color: var(--rm-orange) !important; border-width: 1.5px !important; }
+.rm-flow__num span:first-child { color: var(--rm-orange-ink); font-weight: 600; }
+.rm-flow__title { font-weight: 600 !important; }
+.rm-card-title { font-weight: 600 !important; }
+
+/* Painéis. */
+.rm-panel-name { font-weight: 600 !important; }
+.rm-tile { background: var(--rm-sunken) !important; }
+.rm-tile__l { color: var(--rm-text-2) !important; }
+.rm-list-row { border-top-color: var(--rm-line) !important; }
+.rm-route { border-color: var(--rm-line-strong) !important; }
+
+/* Seletor segmentado (camadas, distância): trilho cinza, opção ativa em azul-marinho. */
+[data-testid="stButtonGroup"] button[aria-checked="true"] { background: var(--rm-navy) !important; border-color: var(--rm-navy) !important; color: #fff !important; }
+[data-testid="stButtonGroup"] button[aria-checked="true"] p { color: #fff !important; }
+[data-testid="stButtonGroup"] button[aria-checked="false"] { background: #fff !important; color: var(--rm-text-2) !important; }
+
+/* Abas: aba ativa em azul-marinho com sublinhado laranja. */
+.stTabs [data-baseweb="tab-highlight"] { background: var(--rm-orange) !important; height: 2px !important; }
+.stTabs [data-baseweb="tab-border"] { background: var(--rm-line) !important; }
+.stTabs [data-baseweb="tab"] p { color: var(--rm-text-2); font-size: 15px; }
+.stTabs [aria-selected="true"] p { color: var(--rm-navy) !important; font-weight: 600 !important; }
+
+/* Mapa: cartão com a barra de busca/camadas em cima e o mapa ocupando o resto. */
+.st-key-card_mapa { padding: 0 !important; gap: 0 !important; overflow: hidden; }
+.st-key-card_mapa > div:first-child { padding: 12px 12px 10px; border-bottom: 1px solid var(--rm-line); }
+.st-key-card_mapa iframe[title="streamlit_folium.st_folium"] { border: 0 !important; border-radius: 0 !important; display: block; }
+.st-key-card_mapa [data-testid="stElementContainer"]:has(iframe) { margin: 0 !important; }
+@media (max-width: 640px) {
+    .st-key-card_mapa iframe[title="streamlit_folium.st_folium"] { height: 430px !important; }
 }

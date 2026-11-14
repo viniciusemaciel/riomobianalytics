@@ -4,10 +4,13 @@ A resposta vem de `webapp.utils.assistente.responder` (agente em `webapp/rag/`);
 gráficos, tabelas e mapas das respostas são desenhados por `webapp/rag/render.py`.
 Os temas e perguntas de exemplo vêm de `webapp/rag/catalogo.py`.
 
-Layout: uma coluna estreita e centrada. Sem conversa, a tela mostra o seletor de
-temas com três perguntas do tema escolhido e o painel "O que o assistente sabe"
-(fechado). Com conversa, as sugestões ficam num popover ao fim do chat. Modelo e
-uso da sessão ficam no popover "Ajustes".
+Layout: uma coluna estreita e centrada, no fundo cinza do app.
+- Sem conversa: título, um cartão com a parada em contexto e a caixa de pergunta,
+  os temas como abas com três perguntas num único cartão, e o link "O que o
+  assistente sabe". Modelo e uso da sessão ficam no popover "Ajustes".
+- Com conversa: barra compacta (contexto, "Nova conversa", "Ajustes"), pergunta do
+  usuário num balão azul-marinho à direita, resposta num cartão branco, e a caixa
+  de pergunta fixa embaixo.
 
 Vindo do botão "Perguntar sobre esta parada" do mapa, a página recebe a parada em
 `selected_stop_id` e a marca em `state.ASSISTENTE_PARADA`: as sugestões da parada
@@ -23,14 +26,10 @@ from webapp.rag import catalogo, render
 from webapp.utils import assistente
 from webapp.utils.data_fetchers import get_stop_details
 from webapp.utils.state import ASSISTENTE_PARADA, get_selected, go as go_page, set_selected
-from webapp.utils.theme import ASSETS_DIR, CREAM, fmt_int, normalize_level, page_header
+from webapp.utils.theme import ASSETS_DIR, fmt_int, normalize_level, page_header
 
-st.markdown(
-    f"<style>[data-testid='stAppViewContainer'], [data-testid='stHeader'] {{ background: {CREAM} !important; }}"
-    f"[data-testid='stBottomBlockContainer'], [data-testid='stBottom'] > div {{ background: {CREAM} !important; }}"
-    "[data-testid='stBottomBlockContainer'] { max-width: 920px !important; }</style>",
-    unsafe_allow_html=True,
-)
+st.markdown("<style>[data-testid='stBottomBlockContainer'] { max-width: 960px !important; }</style>",
+            unsafe_allow_html=True)
 
 AVATAR = str(ASSETS_DIR / "logo_mark.png")
 
@@ -58,22 +57,60 @@ if sel:
 
 # ------------------------------------------------------------------ peças
 def _sugestoes(prefixo: str) -> str | None:
-    """Seletor de tema + as três perguntas do tema. Devolve a pergunta clicada."""
+    """Temas como abas e as três perguntas do tema num cartão. Devolve a pergunta clicada."""
     temas = catalogo.temas(com_parada=bool(ctx))
     ids = [t.id for t in temas]
     chave = f"{prefixo}_tema"
     if st.session_state.get(chave) not in ids:
         st.session_state[chave] = ids[0]
-    st.segmented_control("Tema", ids, format_func={t.id: t.nome for t in temas}.get, key=chave,
-                         label_visibility="collapsed")
+    with st.container(key=f"{prefixo}_temas"):
+        st.segmented_control("Tema", ids, format_func={t.id: t.nome for t in temas}.get, key=chave,
+                             label_visibility="collapsed")
     tema = next((t for t in temas if t.id == st.session_state.get(chave)), temas[0])
-    st.markdown(f"<p class='rm-tema-desc'>{html.escape(tema.descricao)}</p>", unsafe_allow_html=True)
     escolhida = None
-    with st.container(key=f"{prefixo}_perguntas"):
+    with st.container(key=f"card_{prefixo}_perguntas"):
+        st.markdown(f"<p class='rm-tema-desc'>{html.escape(tema.descricao)}</p>", unsafe_allow_html=True)
         for i, p in enumerate(tema.perguntas):
             if st.button(p.texto, key=f"{prefixo}_{tema.id}_{i}", width="stretch"):
                 escolhida = p.texto
     return escolhida
+
+
+def _contexto(chave: str) -> None:
+    """Parada em contexto (com botão para tirar) ou o convite para escolher uma no mapa."""
+    a, b = st.columns([5, 1.4], vertical_alignment="center", gap="small")
+    if ctx:
+        a.markdown(
+            f"<span class='rm-chip'><span class='rm-chip__dot'></span><b>{html.escape(ctx['nome'] or '')}</b>"
+            f"<span class='rm-muted'>índice {ctx['indice']} · {fmt_int(len(ctx['linhas']))} linhas</span></span>",
+            unsafe_allow_html=True,
+        )
+        if b.button("Remover", type="tertiary", key=f"{chave}_off", help="Perguntar sobre a cidade toda"):
+            set_selected(None)
+            st.rerun()
+    else:
+        a.markdown("<span class='rm-muted'>Perguntas sobre a cidade toda.</span>", unsafe_allow_html=True)
+        if b.button("Escolher parada", type="tertiary", key=f"{chave}_pick", help="Abre o mapa para escolher uma parada"):
+            go_page("mapa")
+
+
+def _ajustes() -> None:
+    with st.popover("Ajustes", icon=":material/tune:"):
+        opcoes = assistente.modelos()
+        if len(opcoes) > 1:
+            ids = [o[0] for o in opcoes]
+            if st.session_state.get("rag_provedor") not in ids:
+                st.session_state.rag_provedor = ids[0]
+            st.segmented_control("Modelo", ids, format_func=dict(opcoes).get, key="rag_provedor")
+            st.caption("Se o modelo escolhido falhar, a pergunta é refeita no outro automaticamente.")
+        elif opcoes:
+            st.session_state.rag_provedor = opcoes[0][0]
+            st.caption(f"Modelo: {opcoes[0][1]}")
+        else:
+            st.caption("Nenhum modelo configurado.")
+        n = st.session_state.get("n_perguntas", 0)
+        st.caption(f"Nesta sessão: {n} de {config.RAG_MAX_PERGUNTAS_SESSAO} perguntas"
+                   + (f" · ~US$ {st.session_state.get('custo_sessao', 0.0):.4f}" if n else ""))
 
 
 def _o_que_sabe() -> None:
@@ -134,97 +171,83 @@ def _bastidores(msg: dict) -> None:
 
 
 # ------------------------------------------------------------------ página
+PLACEHOLDER = "Pergunte sobre paradas, bairros ou o índice"
 wrap = st.container(key="rm_assist")
 sugestao = None
-with wrap:
-    page_header("Assistente", "Pergunte sobre os dados",
-                "Responde com os dados do projeto e a documentação dele, e mostra a fonte de cada afirmação.")
+inline = None  # pergunta digitada na caixa do topo (tela sem conversa)
+tem_chat = bool(st.session_state.chat)
 
-    with st.container(key="rm_barra"):
-        c_ctx, c_acao, c_aj = st.columns([6, 1.6, 1.2], vertical_alignment="center", gap="small")
-        if ctx:
-            c_ctx.markdown(
-                f"<span class='rm-chip'><span class='rm-chip__dot'></span><b>{html.escape(ctx['nome'] or '')}</b>"
-                f"<span style='color:#8C97A6'>índice {ctx['indice']} · {fmt_int(len(ctx['linhas']))} linhas</span></span>",
-                unsafe_allow_html=True,
-            )
-            if c_acao.button("Remover", type="tertiary", key="ctx_off"):
-                set_selected(None)
-                st.rerun()
-        else:
-            c_ctx.markdown("<span class='rm-muted'>Perguntas sobre a cidade toda.</span>", unsafe_allow_html=True)
-            if c_acao.button("Escolher parada", type="tertiary", key="ctx_pick",
-                             help="Abre o mapa para escolher uma parada como contexto"):
-                go_page("mapa")
-        with c_aj.popover("Ajustes", width="stretch"):
-            opcoes = assistente.modelos()
-            if len(opcoes) > 1:
-                ids = [o[0] for o in opcoes]
-                if st.session_state.get("rag_provedor") not in ids:
-                    st.session_state.rag_provedor = ids[0]
-                st.segmented_control("Modelo", ids, format_func=dict(opcoes).get, key="rag_provedor")
-                st.caption("Se o modelo escolhido falhar, a pergunta é refeita no outro automaticamente.")
-            elif opcoes:
-                st.session_state.rag_provedor = opcoes[0][0]
-                st.caption(f"Modelo: {opcoes[0][1]}")
-            else:
-                st.caption("Nenhum modelo configurado.")
-            n = st.session_state.get("n_perguntas", 0)
-            st.caption(f"Nesta sessão: {n} de {config.RAG_MAX_PERGUNTAS_SESSAO} perguntas"
-                       + (f" · ~US$ {st.session_state.get('custo_sessao', 0.0):.4f}" if n else ""))
-            if st.session_state.chat and st.button("Limpar conversa", type="tertiary", key="limpar"):
+if ctx is None or st.session_state.get(ASSISTENTE_PARADA) != ctx["stop_id"]:
+    st.session_state.pop(ASSISTENTE_PARADA, None)
+veio_do_mapa = bool(ctx) and st.session_state.get(ASSISTENTE_PARADA) == ctx["stop_id"]
+
+with wrap:
+    if not tem_chat:
+        h, aj = st.columns([5, 1], vertical_alignment="top")
+        with h:
+            page_header("Assistente", "Pergunte sobre os dados",
+                        "Responde com os dados do projeto e a documentação dele, e mostra a fonte de cada afirmação.")
+        with aj, st.container(key="rm_aj"):
+            _ajustes()
+        with st.container(border=True, key="card_pergunta"):
+            _contexto("ctx")
+            inline = st.chat_input(PLACEHOLDER, key="pergunta_inicial")
+        if not assistente.disponivel():
+            st.markdown("<div class='rm-off'>O assistente está desligado: falta configurar a chave de um modelo "
+                        "(ANTHROPIC_API_KEY ou GEMINI_API_KEY). O restante do app funciona normalmente.</div>",
+                        unsafe_allow_html=True)
+        st.markdown("<div class='rm-eyebrow rm-gap'>Comece por um tema</div>", unsafe_allow_html=True)
+        sugestao = _sugestoes("ini")
+        with st.container(key="rm_sabe"):
+            with st.popover("O que o assistente sabe e o que não responde", icon=":material/info:", type="tertiary"):
+                _o_que_sabe()
+    else:
+        with st.container(key="rm_topo"):
+            t, n, aj = st.columns([5, 1.5, 1.2], vertical_alignment="center", gap="small")
+            t.markdown("<div class='rm-assist-titulo'>Assistente</div>", unsafe_allow_html=True)
+            if n.button("Nova conversa", key="nova", width="stretch"):
                 st.session_state.chat = []
                 st.rerun()
+            with aj:
+                _ajustes()
+            _contexto("ctx_chat")
 
-    if not assistente.disponivel():
-        st.markdown(
-            "<div class='rm-off'>O assistente está desligado: falta configurar a chave de um modelo "
-            "(ANTHROPIC_API_KEY ou GEMINI_API_KEY). O restante do app funciona normalmente.</div>",
-            unsafe_allow_html=True,
-        )
+        for i, msg in enumerate(st.session_state.chat):
+            if msg["role"] == "user":
+                extra = f"<div class='rm-bolha__sub'>sobre {html.escape(msg['parada'])}</div>" if msg.get("parada") else ""
+                st.markdown(f"<div class='rm-bolha-linha'><div class='rm-bolha'>{html.escape(msg['text'])}{extra}</div></div>",
+                            unsafe_allow_html=True)
+                continue
+            with st.chat_message("assistant", avatar=AVATAR):
+                st.markdown(msg["text"])
+                if msg.get("visuais"):
+                    render.desenhar(msg["visuais"], f"vis_{i}")
+                if msg.get("fontes"):
+                    _fontes(msg["fontes"])
+                if msg.get("passos") or msg.get("uso"):
+                    _bastidores(msg)
 
-    for i, msg in enumerate(st.session_state.chat):
-        with st.chat_message(msg["role"], avatar=AVATAR if msg["role"] == "assistant" else ":material/person:"):
-            st.markdown(msg["text"])
-            if msg["role"] == "user" and msg.get("parada"):
-                st.caption(f"Sobre a parada {msg['parada']}")
-            if msg.get("visuais"):
-                render.desenhar(msg["visuais"], f"vis_{i}")
-            if msg.get("fontes"):
-                _fontes(msg["fontes"])
-            if msg.get("passos") or msg.get("uso"):
-                _bastidores(msg)
-
-    if ctx is None or st.session_state.get(ASSISTENTE_PARADA) != ctx["stop_id"]:
-        st.session_state.pop(ASSISTENTE_PARADA, None)
-    veio_do_mapa = bool(ctx) and st.session_state.get(ASSISTENTE_PARADA) == ctx["stop_id"]
-
-    if not st.session_state.chat:
-        st.markdown("<div class='rm-eyebrow rm-gap'>O que você pode perguntar</div>", unsafe_allow_html=True)
-        sugestao = _sugestoes("ini")
-        with st.expander("O que o assistente sabe e o que não responde"):
-            _o_que_sabe()
-    elif veio_do_mapa:
-        st.markdown(f"<div class='rm-eyebrow rm-gap'>Sobre {html.escape(ctx['nome'] or 'esta parada')}</div>",
-                    unsafe_allow_html=True)
-        with st.container(key="mapa_perguntas"):
-            for i, p in enumerate(catalogo.TEMA_PARADA.perguntas):
-                if st.button(p.texto, key=f"mapa_{i}", width="stretch"):
-                    sugestao = p.texto
-    elif st.session_state.chat[-1]["role"] == "assistant":
-        with st.container(key="rm_mais"):
-            with st.popover("Sugestões de perguntas", icon=":material/lightbulb:"):
-                sugestao = _sugestoes("pop")
-                with st.expander("O que o assistente sabe"):
-                    _o_que_sabe()
+        if veio_do_mapa:
+            st.markdown(f"<div class='rm-eyebrow rm-gap'>Sobre {html.escape(ctx['nome'] or 'esta parada')}</div>",
+                        unsafe_allow_html=True)
+            with st.container(key="card_mapa_perguntas"):
+                for i, p in enumerate(catalogo.TEMA_PARADA.perguntas):
+                    if st.button(p.texto, key=f"mapa_{i}", width="stretch"):
+                        sugestao = p.texto
+        elif st.session_state.chat[-1]["role"] == "assistant":
+            with st.container(key="rm_mais"):
+                with st.popover("Ver temas e exemplos de perguntas", icon=":material/lightbulb:"):
+                    sugestao = _sugestoes("pop")
 
 # A pergunta entra no histórico e a página recarrega na hora (o usuário vê a mensagem).
 # A resposta é gerada na execução seguinte, para qualquer pergunta que ainda esteja sem
 # resposta: se uma execução for interrompida no meio, a próxima retoma a pergunta, em vez
 # de deixá-la pendurada. Enquanto responde, a caixa de texto fica desativada.
 aguardando = bool(st.session_state.chat) and st.session_state.chat[-1]["role"] == "user"
-question = st.chat_input("Pergunte sobre paradas, bairros ou o índice",
-                         disabled=aguardando) or sugestao
+if tem_chat:
+    question = st.chat_input(PLACEHOLDER, disabled=aguardando, key="pergunta") or sugestao
+else:
+    question = inline or sugestao
 if question and not aguardando:
     st.session_state.chat.append({"role": "user", "text": question, "parada": ctx["nome"] if ctx else None})
     st.session_state.pop(ASSISTENTE_PARADA, None)
@@ -268,5 +291,6 @@ if aguardando:
     st.rerun()
 
 with wrap:
-    st.markdown("<p class='rm-assist-foot'>O índice compara paradas. Não prevê ocorrências nem recomenda rotas.</p>",
-                unsafe_allow_html=True)
+    if not tem_chat:
+        st.markdown("<p class='rm-assist-foot'>O índice compara paradas. Não prevê ocorrências nem recomenda rotas.</p>",
+                    unsafe_allow_html=True)

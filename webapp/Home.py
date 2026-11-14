@@ -38,4 +38,9 @@ pages = [
     st.Page("views/metodologia.py", title="Metodologia", url_path="metodologia"),
 ]
 
-st.navigation(pages, position="top").run()
+nav = st.navigation(pages, position="top")
+# A aba ativa do menu não tem marcação própria no Streamlit: o realce sai daqui, pelo endereço da página.
+_alvo = f'[href$="/{nav.url_path}"]' if nav.url_path else '[href$="/"]'
+st.markdown(f"<style>[data-testid='stTopNavLink']{_alvo} span {{ color: #0B1F3A !important; font-weight: 600 !important; }}"
+            f"[data-testid='stTopNavLink']{_alvo} {{ box-shadow: inset 0 -3px 0 #F26A4B; }}</style>", unsafe_allow_html=True)
+nav.run()

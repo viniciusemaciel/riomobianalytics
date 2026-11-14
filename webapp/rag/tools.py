@@ -138,7 +138,7 @@ def resumo_bairros(ordenar_por="paradas_nivel_alto", limite=10, busca: str | Non
     col = ORDENS_BAIRRO.get(ordenar_por, "paradas_nivel_alto")
     g = g.sort_values(col, ascending=False)
     linhas = [{"bairro": r["bairro"], "paradas": int(r["paradas"]), "paradas_nivel_alto": int(r["paradas_nivel_alto"]),
-               "indice_medio": _num(r["indice_medio"]), "reclamacoes": int(r["reclamacoes"])}
+               "indice_medio_todas_as_paradas": _num(r["indice_medio"]), "reclamacoes": int(r["reclamacoes"])}
               for r in g.head(n).to_dict("records")]
     return {"dados": {"total_bairros": int(len(g)), "ordenado_por": ordenar_por, "bairros": linhas},
             "fonte": "Neo4j: paradas agrupadas por bairro oficial (Limite de Bairros da Prefeitura)"}
@@ -350,7 +350,9 @@ DEFINICOES = [
           {"termo": {"type": "string", "description": "parte do nome da parada"},
            "bairro": {"type": "string", "description": "nome do bairro (ou parte dele)"}, "limite": _LIMITE}),
     _tool("resumo_bairros",
-          "Bairros ordenados por número de paradas de nível alto, índice médio ou total de paradas, com reclamações.",
+          "Bairros ordenados por número de paradas de nível alto, índice médio ou total de paradas, com reclamações. "
+          "O índice médio é de TODAS as paradas do bairro, não só das de nível Alto; para a média só das de nível Alto "
+          "(ou qualquer outro recorte) use consulta_cypher.",
           {"ordenar_por": {"type": "string", "enum": list(ORDENS_BAIRRO), "description": "padrão: paradas_nivel_alto"},
            "limite": _LIMITE, "busca": {"type": "string", "description": "filtra pelo nome do bairro"}}),
     _tool("detalhes_parada",

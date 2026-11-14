@@ -105,5 +105,8 @@ def chamar(
         from . import provedor_anthropic as mod
     else:
         from . import provedor_gemini as mod
-    return mod.chamar(system, mensagens, ferramentas or [], modelo=p.modelo,
-                      permitir_ferramentas=permitir_ferramentas, max_tokens=max_tokens)
+    try:
+        return mod.chamar(system, mensagens, ferramentas or [], modelo=p.modelo,
+                          permitir_ferramentas=permitir_ferramentas, max_tokens=max_tokens)
+    except ImportError as e:  # SDK não instalado: vira ErroLLM para o fallback poder entrar
+        raise ErroLLM(f"o pacote do {p.nome} não está instalado ({e.name}); rode pip install -r requirements.txt") from e

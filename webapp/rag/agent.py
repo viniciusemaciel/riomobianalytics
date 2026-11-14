@@ -158,6 +158,10 @@ def _rodar(pergunta, *, system_prompt, ferramentas, historico, contexto, ao_cham
             res.uso[k] += resposta.uso.get(k, 0)
 
     res.texto = (resposta.texto if resposta else "").strip() or "Não consegui montar uma resposta."
+    # Marcador [n] sem fonte correspondente (ferramenta com erro, recusa, aviso) é removido:
+    # o modelo às vezes cita [1] quando nada foi consultado, e isso passaria por evidência.
+    existentes = {f["id"] for f in info_fontes}
+    res.texto = re.sub(r"\s?\[(\d+)\]", lambda m: m.group(0) if m.group(1) in existentes else "", res.texto)
     # Mostra só as fontes citadas no texto; se o modelo não citou nenhuma, mostra todas as usadas.
     citadas = set(re.findall(r"\[(\d+)\]", res.texto))
     res.fontes = [f for f in info_fontes if f["id"] in citadas] or info_fontes

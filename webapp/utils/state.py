@@ -8,6 +8,8 @@ from __future__ import annotations
 import streamlit as st
 
 KEY = "selected_stop_id"
+# Parada com que o usuário abriu o Assistente pelo botão do mapa ("Perguntar sobre esta parada").
+ASSISTENTE_PARADA = "assistente_parada_pedida"
 
 PAGES = {
     "inicio": "views/inicio.py",
@@ -32,3 +34,10 @@ def set_selected(stop_id: str | None) -> None:
 
 def go(page: str) -> None:
     st.switch_page(PAGES[page])
+
+
+def ask_about(stop_id: str) -> None:
+    """Seleciona a parada e abre o Assistente com ela como contexto e as sugestões dela à vista."""
+    set_selected(stop_id)
+    st.session_state[ASSISTENTE_PARADA] = stop_id
+    go("assistente")

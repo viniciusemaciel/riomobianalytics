@@ -1,7 +1,11 @@
 """Assistente — perguntas em português sobre os dados, com a parada selecionada como contexto.
 
-A interface está pronta; a resposta vem de `webapp.utils.assistente.responder`,
-que a Frente 3 (RAG) implementa.
+A resposta vem de `webapp.utils.assistente.responder` (agente em `webapp/rag/`);
+gráficos, tabelas e mapas das respostas são desenhados por `webapp/rag/render.py`.
+
+Vindo do botão "Perguntar sobre esta parada" do mapa, a página recebe a parada em
+`selected_stop_id` e a marca em `state.ASSISTENTE_PARADA`: as sugestões da parada
+aparecem mesmo com conversa em andamento, até a próxima pergunta.
 """
 import html
 import json
@@ -9,9 +13,10 @@ import json
 import streamlit as st
 
 import config
+from webapp.rag import render
 from webapp.utils import assistente
 from webapp.utils.data_fetchers import get_stop_details
-from webapp.utils.state import get_selected, go as go_page, set_selected
+from webapp.utils.state import ASSISTENTE_PARADA, get_selected, go as go_page, set_selected
 from webapp.utils.theme import ASSETS_DIR, CREAM, fmt_int, normalize_level, page_header
 
 st.markdown(
@@ -78,9 +83,13 @@ with center:
 
     st.write("")
     sugestao = None
-    for msg in st.session_state.chat:
+    for i, msg in enumerate(st.session_state.chat):
         with st.chat_message(msg["role"], avatar=AVATAR if msg["role"] == "assistant" else None):
             st.markdown(msg["text"])
+            if msg["role"] == "user" and msg.get("parada"):
+                st.caption(f"Sobre a parada {msg['parada']}")
+            if msg.get("visuais"):
+                render.desenhar(msg["visuais"], f"vis_{i}")
             if msg.get("passos") or msg.get("uso"):
                 with st.expander("Como cheguei nisso"):
                     if msg.get("uso"):
@@ -101,8 +110,13 @@ with center:
                     unsafe_allow_html=True,
                 )
 
-    if not st.session_state.chat:
-        st.markdown("<div class='rm-eyebrow' style='margin:6px 0 10px'>Sugestões</div>", unsafe_allow_html=True)
+    if ctx is None or st.session_state.get(ASSISTENTE_PARADA) != ctx["stop_id"]:
+        st.session_state.pop(ASSISTENTE_PARADA, None)
+    veio_do_mapa = bool(ctx) and st.session_state.get(ASSISTENTE_PARADA) == ctx["stop_id"]
+    if not st.session_state.chat or veio_do_mapa:
+        titulo_sug = f"Sobre {ctx['nome']}" if (veio_do_mapa and st.session_state.chat) else "Sugestões"
+        st.markdown(f"<div class='rm-eyebrow' style='margin:6px 0 10px'>{html.escape(titulo_sug or '')}</div>",
+                    unsafe_allow_html=True)
         sugs = assistente.SUGESTOES_COM_PARADA if ctx else assistente.SUGESTOES_GERAIS
         for i, s in enumerate(sugs):
             if st.button(s, key=f"sug_{i}"):
@@ -123,7 +137,8 @@ with center:
 aguardando = bool(st.session_state.chat) and st.session_state.chat[-1]["role"] == "user"
 question = st.chat_input("Pergunte sobre paradas, linhas ou segurança no entorno", disabled=aguardando) or sugestao
 if question and not aguardando:
-    st.session_state.chat.append({"role": "user", "text": question})
+    st.session_state.chat.append({"role": "user", "text": question, "parada": ctx["nome"] if ctx else None})
+    st.session_state.pop(ASSISTENTE_PARADA, None)
     if not assistente.disponivel():
         st.session_state.chat.append({
             "role": "assistant",
@@ -155,7 +170,8 @@ if aguardando:
                                               "fontes": ans.get("fontes", []), "passos": ans.get("passos", []),
                                               "uso": ans.get("uso"), "rodadas": ans.get("rodadas", 0),
                                               "duracao_ms": ans.get("duracao_ms", 0),
-                                              "provedor": ans.get("provedor"), "fallback": ans.get("fallback")})
+                                              "provedor": ans.get("provedor"), "fallback": ans.get("fallback"),
+                                              "visuais": ans.get("visuais", [])})
                 st.session_state.custo_sessao = st.session_state.get("custo_sessao", 0.0) + assistente.custo_estimado(ans.get("uso") or {}, ans.get("provedor"))
             except Exception as e:
                 status.update(label="Não consegui responder", state="error")

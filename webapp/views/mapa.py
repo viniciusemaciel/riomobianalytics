@@ -7,21 +7,20 @@ import plotly.graph_objects as go
 import streamlit as st
 from streamlit_folium import st_folium
 
-import config
 from webapp.utils.data_fetchers import (
     get_complaint_details, get_complaints_by_location, get_connected_stops,
     get_route_stop_ids, get_routes_with_metrics, get_stop_complaints, get_stop_details,
     get_stops_with_risk, get_system_stats,
 )
 from webapp.utils.insights import MESES_ABREV, shootings_by_month
-from webapp.utils.state import get_selected, go as go_page, set_selected
+from webapp.utils.mapa_base import RIO_CENTER, tiles_layer
+from webapp.utils.state import ask_about, get_selected, go as go_page, set_selected
 from webapp.utils.theme import (
     CATEGORY_COLORS, LEVEL_COLORS, LEVELS, LINE, MUTED, NAVY, NO_LEVEL_COLOR,
     ORANGE, empty_state, fmt_int, get_risk_color, legend_html, level_legend,
     normalize_level, note, plotly_layout, risk_badge, selection_chip, stat_band,
 )
 
-RIO_CENTER = [-22.905, -43.33]
 LAYERS = ["Índice de risco", "Tiroteio", "Reclamações"]
 TIRO_BINS = [(0.70, "≥ 70"), (0.50, "50 a 69"), (0.25, "25 a 49"), (0.0, "< 25")]
 
@@ -33,23 +32,6 @@ def tiro_color(score: float) -> str:
         if score >= cut:
             return color
     return colors[-1]
-
-
-def tiles_layer(m: folium.Map) -> None:
-    key = config._secret("MAPTILER_API_KEY")
-    if key:
-        folium.TileLayer(
-            tiles=f"https://api.maptiler.com/maps/dataviz-light/256/{{z}}/{{x}}/{{y}}{{r}}.png?key={key}",
-            attr='<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> '
-                 '<a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap</a>',
-            name="MapTiler Dataviz", max_zoom=19,
-        ).add_to(m)
-    else:
-        folium.TileLayer(
-            tiles="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-            attr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-            name="CartoDB Positron", subdomains="abcd", max_zoom=19,
-        ).add_to(m)
 
 
 def stops_geojson(df: pd.DataFrame, layer: str) -> dict:
@@ -237,8 +219,8 @@ def render_panel(sel_id: str, stops_df: pd.DataFrame) -> None:
     st.write("")
     if st.button("Ver rede da parada →", type="primary", width="stretch", key="go_rede"):
         go_page("rede")
-    if st.button("Perguntar ao assistente", width="stretch", key="go_assist"):
-        go_page("assistente")
+    if st.button("Perguntar sobre esta parada", width="stretch", key="go_assist"):
+        ask_about(sel_id)
     if st.button("Limpar seleção", type="tertiary", key="clear_sel"):
         set_selected(None)
         st.rerun()

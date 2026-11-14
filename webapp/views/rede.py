@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from webapp.utils.data_fetchers import get_stop_neighborhood, get_stops_with_risk
-from webapp.utils.state import get_selected, go as go_page, set_selected
+from webapp.utils.state import ask_about, get_selected, go as go_page, set_selected
 from webapp.utils.theme import (
     LINE, MUTED, NAVY, ORANGE, empty_state, fmt_int, get_risk_color, level_legend,
     normalize_level, note, page_header, plotly_layout,
@@ -183,6 +183,5 @@ with col_p:
             set_selected(origin)
             st.session_state["map_center"] = origin
             go_page("mapa")
-        if st.button("Perguntar ao assistente", width="stretch", key="rede_assist"):
-            set_selected(origin)
-            go_page("assistente")
+        if st.button("Perguntar sobre esta parada", width="stretch", key="rede_assist"):
+            ask_about(origin)

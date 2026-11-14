@@ -11,6 +11,11 @@ Contrato com as ferramentas (`webapp/rag/tools.py`, a implementar):
         "fonte": str curta dizendo a consulta/documento usado
         "detalhe": str opcional (ex.: o Cypher executado)
 
+Visuais (Fase 4): uma ferramenta pode devolver a chave extra `"visual"` (especificação
+de gráfico, tabela ou mapa). O agente confere que o `fonte_id` citado no visual existe
+nesta pergunta, limita a `MAX_VISUAIS_POR_RESPOSTA` e junta tudo em `Resultado.visuais`.
+O modelo só recebe "ok" (ou o erro), nunca a especificação de volta.
+
 Citações: cada fonte distinta ganha um número na ordem de uso e o resultado
 enviado ao modelo traz `fonte_id`. O prompt manda o modelo citar como [n].
 """
@@ -24,6 +29,7 @@ from dataclasses import dataclass, field
 import config
 
 from . import llm
+from .visuais import MAX_VISUAIS_POR_RESPOSTA
 
 MAX_CHARS_RESULTADO = 24000
 
@@ -50,6 +56,7 @@ class Resultado:
     provedor: str = ""
     modelo: str = ""
     fallback: dict | None = None    # {"de": provedor que falhou, "motivo": mensagem curta}
+    visuais: list[dict] = field(default_factory=list)   # especificações de webapp/rag/visuais.py
 
     def como_dict(self) -> dict:
         """Formato que a página já espera (`texto`, `fontes`) mais os passos para o expansor."""
@@ -63,6 +70,7 @@ class Resultado:
             "provedor": self.provedor,
             "modelo": self.modelo,
             "fallback": self.fallback,
+            "visuais": self.visuais,
         }
 
 
@@ -129,6 +137,14 @@ def _rodar(pergunta, *, system_prompt, ferramentas, historico, contexto, ao_cham
             t0 = time.time()
             try:
                 saida = ferramentas.executar(ch.nome, ch.argumentos)
+                visual = saida.get("visual")
+                if visual is not None:
+                    if len(res.visuais) >= MAX_VISUAIS_POR_RESPOSTA:
+                        raise ValueError(f"limite de {MAX_VISUAIS_POR_RESPOSTA} visuais por resposta atingido; responda só com texto")
+                    ref = visual.get("fonte_id")
+                    if ref is not None and ref not in {f["id"] for f in info_fontes}:
+                        raise ValueError(f"fonte_id '{ref}' não existe nesta pergunta; consulte os dados com uma ferramenta "
+                                         "e use o fonte_id que ela devolver")
                 fonte_id = None
                 if saida.get("fonte"):
                     chave = saida["fonte"] + "|" + (saida.get("detalhe") or "")
@@ -139,6 +155,10 @@ def _rodar(pergunta, *, system_prompt, ferramentas, historico, contexto, ao_cham
                     fonte_id = fontes[chave]
                 payload = {"fonte_id": fonte_id, "dados": saida.get("dados")}
                 bloco = {"type": "tool_result", "tool_use_id": ch.id, "content": _serializar(payload)}
+                if visual is not None:
+                    if visual.get("tipo") == "mapa" and fonte_id:
+                        visual = {**visual, "fonte_id": fonte_id}
+                    res.visuais.append(visual)
                 res.passos.append(Passo(ch.nome, ch.argumentos, True, saida.get("fonte") or "",
                                         int((time.time() - t0) * 1000), fonte_id))
             except Exception as e:  # erro de ferramenta volta ao modelo como texto curto, nunca para a tela
@@ -163,7 +183,7 @@ def _rodar(pergunta, *, system_prompt, ferramentas, historico, contexto, ao_cham
     existentes = {f["id"] for f in info_fontes}
     res.texto = re.sub(r"\s?\[(\d+)\]", lambda m: m.group(0) if m.group(1) in existentes else "", res.texto)
     # Mostra só as fontes citadas no texto; se o modelo não citou nenhuma, mostra todas as usadas.
-    citadas = set(re.findall(r"\[(\d+)\]", res.texto))
+    citadas = set(re.findall(r"\[(\d+)\]", res.texto)) | {v["fonte_id"] for v in res.visuais if v.get("fonte_id")}
     res.fontes = [f for f in info_fontes if f["id"] in citadas] or info_fontes
     return res
 

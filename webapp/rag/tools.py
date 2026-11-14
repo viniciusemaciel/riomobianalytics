@@ -24,6 +24,12 @@ glossário, contexto externo) por similaridade de embeddings. O índice é gerad
 (scripts/11_indexar_rag.py); em tempo de execução só a pergunta é enviada ao Gemini.
 Não toca em banco.
 
+Visuais (Fase 4): `mostrar_grafico`, `mostrar_tabela` e `mostrar_mapa` não respondem
+nada ao modelo além de um "ok": devolvem a chave extra `visual` com a especificação
+validada (ver webapp/rag/visuais.py), que o agente junta ao resultado e a página desenha
+(webapp/rag/render.py). Gráfico e tabela levam os valores copiados pelo modelo e o
+`fonte_id` de onde saíram; o mapa recebe stop_ids e lê posição e índice do banco.
+
 Bairro: `Stop.bairro` é o bairro oficial (Limite de Bairros da Prefeitura),
 gravado por scripts/09_bairro_paradas.py. Sem ele, as ferramentas de bairro
 devolvem um erro explicando o que falta.
@@ -34,7 +40,7 @@ import unicodedata
 
 import pandas as pd
 
-from webapp.rag import conhecimento, cypher_guard
+from webapp.rag import conhecimento, cypher_guard, visuais
 from webapp.utils import data_fetchers as df_
 from webapp.utils import insights
 from webapp.utils.db_connections import query_neo4j, somente_leitura
@@ -362,6 +368,41 @@ def consulta_cypher(consulta: str, objetivo: str | None = None) -> dict:
     }
 
 
+# ---------------------------------------------------------------------- visuais
+_OK_VISUAL = ("O visual vai aparecer logo abaixo da sua resposta. Não repita no texto todos os valores dele: "
+              "escreva 1 a 3 frases com o principal e cite a fonte [n] dos dados.")
+
+
+def mostrar_grafico(formato=None, titulo=None, rotulos=None, series=None, eixo_y=None, fonte_id=None) -> dict:
+    spec = visuais.grafico(formato, titulo, rotulos, series, eixo_y, fonte_id)
+    return {"dados": {"ok": True, "visual": "gráfico", "observacao": _OK_VISUAL}, "fonte": "", "visual": spec}
+
+
+def mostrar_tabela(titulo=None, colunas=None, linhas=None, fonte_id=None) -> dict:
+    spec = visuais.tabela(titulo, colunas, linhas, fonte_id)
+    return {"dados": {"ok": True, "visual": "tabela", "observacao": _OK_VISUAL}, "fonte": "", "visual": spec}
+
+
+def mostrar_mapa(stop_ids=None, titulo=None, destaque=None) -> dict:
+    ids, destaque = visuais.ids_do_mapa(stop_ids, destaque)
+    todas = df_.get_stops_with_risk()
+    achadas = todas[todas["id"].isin(ids)].dropna(subset=["lat", "lon"]).set_index("id")
+    faltando = [i for i in ids if i not in achadas.index]
+    if achadas.empty:
+        raise ValueError("nenhum dos stop_ids existe no banco; use os stop_id devolvidos por outras ferramentas")
+    pontos = [{"stop_id": i, "nome": achadas.at[i, "name"], "lat": round(float(achadas.at[i, "lat"]), 6),
+               "lon": round(float(achadas.at[i, "lon"]), 6), "indice": _num(achadas.at[i, "risk_score_normalized"]),
+               "nivel": achadas.at[i, "risk_level"]} for i in ids if i in achadas.index]
+    if destaque not in achadas.index:
+        destaque = None
+    spec = visuais.mapa(titulo, pontos, destaque)
+    dados = {"ok": True, "visual": "mapa", "paradas_no_mapa": len(pontos), "observacao": _OK_VISUAL}
+    if faltando:
+        dados["ids_nao_encontrados"] = faltando[:10]
+    return {"dados": dados, "fonte": f"Neo4j: localização e índice de {len(pontos)} parada(s) para o mapa",
+            "visual": spec}
+
+
 # ------------------------------------------------------------ definições e despacho
 def _tool(nome, descricao, props: dict, obrigatorios=()):
     return {"name": nome, "description": descricao,
@@ -429,11 +470,51 @@ DEFINICOES = [
     _tool("rede_em_volta",
           "Paradas ligadas a uma parada na rede (CONNECTS_TO), com índice de risco de cada uma e a média da vizinhança.",
           {"stop_id": _STOP_ID, "saltos": {"type": "integer", "description": "1 a 3"}, "limite": _LIMITE}, ["stop_id"]),
+    _tool("mostrar_grafico",
+          "Desenha um gráfico abaixo da resposta. Use para séries no tempo (ex.: tiroteios por mês de tiroteios_parada) "
+          "ou para comparar de 4 a 15 itens (ranking de bairros, linhas, paradas). Os valores TÊM de ser copiados sem "
+          "alteração de um resultado de ferramenta desta conversa, e fonte_id é o fonte_id desse resultado. Índice de "
+          "risco vai de 0 a 100, nunca em %.",
+          {"formato": {"type": "string", "enum": list(visuais.FORMATOS),
+                       "description": "linha para série no tempo; barra_horizontal para ranking com nomes longos; barra nos demais"},
+           "titulo": {"type": "string", "description": "título curto, com o período quando houver"},
+           "rotulos": {"type": "array", "items": {"type": "string"},
+                       "description": f"rótulos do eixo x (meses, nomes), no máximo {visuais.MAX_ROTULOS}"},
+           "series": {"type": "array", "description": f"1 a {visuais.MAX_SERIES} séries, cada uma com um valor por rótulo",
+                      "items": {"type": "object", "properties": {
+                          "nome": {"type": "string"},
+                          "valores": {"type": "array", "items": {"type": "number"}}},
+                          "required": ["nome", "valores"]}},
+           "eixo_y": {"type": "string", "description": "o que o eixo y mede (ex.: 'ocorrências', 'índice de risco (0 a 100)')"},
+           "fonte_id": {"type": "string", "description": "fonte_id do resultado de onde os valores saíram"}},
+          ["formato", "titulo", "rotulos", "series", "fonte_id"]),
+    _tool("mostrar_tabela",
+          "Mostra uma tabela abaixo da resposta. Use para listas com mais de 5 itens e 2 ou mais atributos (ex.: paradas "
+          "com bairro, índice e nível). Valores copiados sem alteração de um resultado de ferramenta desta conversa; "
+          "fonte_id é o fonte_id desse resultado.",
+          {"titulo": {"type": "string"},
+           "colunas": {"type": "array", "items": {"type": "string"}, "description": f"no máximo {visuais.MAX_COLUNAS}"},
+           "linhas": {"type": "array", "description": f"no máximo {visuais.MAX_LINHAS_TABELA}; cada linha tem um valor por coluna, como texto",
+                      "items": {"type": "array", "items": {"type": "string"}}},
+           "fonte_id": {"type": "string", "description": "fonte_id do resultado de onde os valores saíram"}},
+          ["titulo", "colunas", "linhas", "fonte_id"]),
+    _tool("mostrar_mapa",
+          "Mostra paradas num mapa abaixo da resposta, coloridas pelo nível de risco. Passe só os stop_id (posição e "
+          "índice são lidos do banco). Use quando onde as paradas ficam ajuda a responder: ranking de paradas, paradas "
+          "de um bairro, vizinhas da parada selecionada.",
+          {"stop_ids": {"type": "array", "items": {"type": "string"},
+                        "description": f"stop_id devolvidos por outras ferramentas, no máximo {visuais.MAX_PONTOS_MAPA}"},
+           "titulo": {"type": "string"},
+           "destaque": {"type": "string", "description": "stop_id a destacar (ex.: a parada selecionada); opcional"}},
+          ["stop_ids", "titulo"]),
 ]
 
 _FUNCOES = {f.__name__: f for f in (
     estatisticas_gerais, paradas_mais_criticas, buscar_parada, resumo_bairros, detalhes_parada,
-    reclamacoes_parada, tiroteios_parada, tiroteios_bairros, resumo_reclamacoes, metricas_linhas, rede_em_volta, consulta_cypher, buscar_conhecimento)}
+    reclamacoes_parada, tiroteios_parada, tiroteios_bairros, resumo_reclamacoes, metricas_linhas, rede_em_volta, consulta_cypher, buscar_conhecimento,
+    mostrar_grafico, mostrar_tabela, mostrar_mapa)}
+
+VISUAIS = {"mostrar_grafico", "mostrar_tabela", "mostrar_mapa"}
 
 
 def executar(nome: str, argumentos: dict | None = None) -> dict:

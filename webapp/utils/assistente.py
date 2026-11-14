@@ -7,6 +7,7 @@ A página `views/assistente.py` chama `responder(...)`. A lógica fica em
         "texto":  resposta em Markdown, com marcadores [1], [2] citando fontes
         "fontes": lista de {"id": "1", "titulo": "...", "detalhe": "..."}
         "passos": ferramentas chamadas (para o expansor "Como cheguei nisso")
+        "visuais": gráficos, tabelas e mapas pedidos pelo modelo (desenhados por webapp/rag/render.py)
 """
 from __future__ import annotations
 
@@ -24,6 +25,9 @@ ROTULOS_FERRAMENTA = {
     "rede_em_volta": "Consultando as paradas ligadas...",
     "consulta_cypher": "Rodando uma consulta no grafo...",
     "buscar_conhecimento": "Consultando a documentação do projeto...",
+    "mostrar_grafico": "Montando o gráfico...",
+    "mostrar_tabela": "Montando a tabela...",
+    "mostrar_mapa": "Montando o mapa...",
 }
 
 
@@ -86,12 +90,13 @@ def resumo_uso(uso: dict, rodadas: int, duracao_ms: int, provedor: str | None = 
 
 SUGESTOES_COM_PARADA = [
     "Por que esta parada tem esse índice de risco?",
-    "Quais paradas vizinhas têm índice parecido?",
+    "Mostre os tiroteios perto desta parada mês a mês",
+    "Mostre no mapa as paradas vizinhas e o índice de cada uma",
     "Quais linhas passam por esta parada?",
 ]
 
 SUGESTOES_GERAIS = [
-    "Quais são as 10 paradas com maior índice de risco?",
-    "Quais bairros têm mais paradas de nível alto?",
+    "Mostre no mapa as 10 paradas com maior índice de risco",
+    "Quais bairros têm mais paradas de nível alto? Mostre num gráfico",
     "Quais linhas passam por mais paradas de nível alto?",
 ]

@@ -19,6 +19,11 @@ Cypher livre: `consulta_cypher` roda Cypher escrito pelo modelo, só depois de
 passar por `cypher_guard.validar` (leitura, lista branca, LIMIT, caminhos curtos)
 e com timeout. Fica para o que as ferramentas fixas não cobrem.
 
+Documentação: `buscar_conhecimento` procura nos textos de docs/rag (método, modelo, dados,
+glossário, contexto externo) por similaridade de embeddings. O índice é gerado offline
+(scripts/11_indexar_rag.py); em tempo de execução só a pergunta é enviada ao Gemini.
+Não toca em banco.
+
 Bairro: `Stop.bairro` é o bairro oficial (Limite de Bairros da Prefeitura),
 gravado por scripts/09_bairro_paradas.py. Sem ele, as ferramentas de bairro
 devolvem um erro explicando o que falta.
@@ -29,7 +34,7 @@ import unicodedata
 
 import pandas as pd
 
-from webapp.rag import cypher_guard
+from webapp.rag import conhecimento, cypher_guard
 from webapp.utils import data_fetchers as df_
 from webapp.utils import insights
 from webapp.utils.db_connections import query_neo4j, somente_leitura
@@ -293,6 +298,33 @@ def rede_em_volta(stop_id: str, saltos=1, limite=15) -> dict:
             "fonte": f"Neo4j: paradas a até {h} salto(s) de {stop_id} (CONNECTS_TO; a consulta devolve no máximo 50)"}
 
 
+def buscar_conhecimento(pergunta: str) -> dict:
+    """Trechos da documentação (docs/rag) mais parecidos com a pergunta, já com tipo e origem."""
+    try:
+        trechos = conhecimento.buscar(pergunta)
+    except FileNotFoundError as e:
+        raise ValueError(f"a documentação ainda não foi indexada: {e}") from e
+    except ValueError:
+        raise
+    except Exception as e:  # SDK, rede, limite de requisições: o modelo segue sem a documentação
+        raise ValueError(f"a busca na documentação está indisponível agora ({type(e).__name__}); "
+                         "responda só com o que as outras ferramentas trouxerem e avise que não consultou a documentação") from e
+    if not trechos:
+        return {"dados": {"trechos": [], "observacao": (
+            "Nenhum trecho da documentação é próximo o bastante da pergunta. Diga que a documentação do projeto não "
+            "cobre isso; não complete de memória.")}, "fonte": ""}
+    externo = any(t["tipo"] == "externo" for t in trechos)
+    campos = ("titulo", "secao", "tipo", "origem", "url", "periodo_coberto", "acessado_em", "similaridade", "texto")
+    obs = "Trechos de tipo 'interno' explicam o projeto. Números vivos (índice, contagens) vêm das outras ferramentas."
+    if externo:
+        obs += (" Trechos de tipo 'externo' são resumos de fontes públicas: apresente como 'segundo [origem]', com o período, "
+                "e nunca como dado do projeto.")
+    return {
+        "dados": {"trechos": [{k: t[k] for k in campos if t.get(k)} for t in trechos], "observacao": obs},
+        "fonte": "Documentação do projeto: " + "; ".join(f"{t['titulo']} > {t['secao']}" for t in trechos),
+    }
+
+
 MAX_CHARS_VALOR = 300  # texto longo (ex.: descrição de reclamação) é cortado na consulta livre
 
 
@@ -387,6 +419,13 @@ DEFINICOES = [
           {"consulta": {"type": "string", "description": "o Cypher, sem parâmetros ($) e sem crases"},
            "objetivo": {"type": "string", "description": "em poucas palavras, o que a consulta busca (vira o título da fonte)"}},
           ["consulta", "objetivo"]),
+    _tool("buscar_conhecimento",
+          "Busca na documentação do projeto: o que é o projeto, como o índice e o modelo funcionam, de onde vêm os dados "
+          "(GTFS, 1746, Fogo Cruzado), glossário, como usar o app e contexto de segurança pública (fontes externas "
+          "resumidas). Devolve até 2 trechos com tipo (interno ou externo) e origem. NÃO traz números atuais de paradas, "
+          "bairros ou linhas: para isso use as outras ferramentas.",
+          {"pergunta": {"type": "string", "description": "a dúvida reescrita em uma frase completa e autossuficiente, em português"}},
+          ["pergunta"]),
     _tool("rede_em_volta",
           "Paradas ligadas a uma parada na rede (CONNECTS_TO), com índice de risco de cada uma e a média da vizinhança.",
           {"stop_id": _STOP_ID, "saltos": {"type": "integer", "description": "1 a 3"}, "limite": _LIMITE}, ["stop_id"]),
@@ -394,7 +433,7 @@ DEFINICOES = [
 
 _FUNCOES = {f.__name__: f for f in (
     estatisticas_gerais, paradas_mais_criticas, buscar_parada, resumo_bairros, detalhes_parada,
-    reclamacoes_parada, tiroteios_parada, tiroteios_bairros, resumo_reclamacoes, metricas_linhas, rede_em_volta, consulta_cypher)}
+    reclamacoes_parada, tiroteios_parada, tiroteios_bairros, resumo_reclamacoes, metricas_linhas, rede_em_volta, consulta_cypher, buscar_conhecimento)}
 
 
 def executar(nome: str, argumentos: dict | None = None) -> dict:

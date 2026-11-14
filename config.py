@@ -60,6 +60,11 @@ RAG_MODEL_GEMINI = _secret("RAG_MODEL_GEMINI", default="gemini-3.5-flash-lite") 
 RAG_PROVEDOR_PADRAO = _secret("RAG_PROVEDOR_PADRAO", default="anthropic")   # anthropic | gemini
 RAG_FALLBACK = (_secret("RAG_FALLBACK", default="true") or "").lower() in ("1", "true", "sim", "yes")
 RAG_MAX_PERGUNTAS_SESSAO = int(_secret("RAG_MAX_PERGUNTAS_SESSAO", default="30"))
+# Busca na documentação (docs/rag): vetores gerados offline por scripts/11_indexar_rag.py
+RAG_MODEL_EMBEDDING = _secret("RAG_MODEL_EMBEDDING", default="gemini-embedding-001")
+RAG_EMBED_DIM = int(_secret("RAG_EMBED_DIM", default="768"))   # mesmo valor na indexação e na busca
+RAG_BUSCA_TOP_K = int(_secret("RAG_BUSCA_TOP_K", default="2"))  # trechos por busca
+RAG_LIMIAR_SIMILARIDADE = float(_secret("RAG_LIMIAR_SIMILARIDADE", default="0.60"))  # cosseno mínimo; valor inicial, ainda não calibrado
 RAG_MAX_RODADAS = 6        # rodadas de ferramenta por pergunta
 RAG_MAX_HISTORICO = 10     # mensagens do histórico enviadas ao modelo
 RAG_PRECO_ENTRADA_MTOK = float(_secret("RAG_PRECO_ENTRADA_MTOK", default="0.10"))  # US$ por 1M tokens (estimativa)

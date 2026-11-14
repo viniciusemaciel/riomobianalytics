@@ -23,6 +23,7 @@ ROTULOS_FERRAMENTA = {
     "metricas_linhas": "Consultando as linhas...",
     "rede_em_volta": "Consultando as paradas ligadas...",
     "consulta_cypher": "Rodando uma consulta no grafo...",
+    "buscar_conhecimento": "Consultando a documentação do projeto...",
 }
 
 

@@ -18,9 +18,11 @@ ROTULOS_FERRAMENTA = {
     "detalhes_parada": "Consultando os detalhes da parada...",
     "reclamacoes_parada": "Consultando as reclamações da parada...",
     "tiroteios_parada": "Consultando os tiroteios perto da parada...",
+    "tiroteios_bairros": "Contando tiroteios por bairro...",
     "resumo_reclamacoes": "Contando reclamações por categoria...",
     "metricas_linhas": "Consultando as linhas...",
     "rede_em_volta": "Consultando as paradas ligadas...",
+    "consulta_cypher": "Rodando uma consulta no grafo...",
 }
 
 

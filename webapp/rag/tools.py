@@ -15,6 +15,10 @@ Tiroteios: `tiroteios_parada` é a única ferramenta que lê o CSV do Fogo Cruza
 (via utils/insights.py), porque as ocorrências não estão no Neo4j. Conta
 ocorrências, não vítimas, e informa sempre o período que a base cobre.
 
+Cypher livre: `consulta_cypher` roda Cypher escrito pelo modelo, só depois de
+passar por `cypher_guard.validar` (leitura, lista branca, LIMIT, caminhos curtos)
+e com timeout. Fica para o que as ferramentas fixas não cobrem.
+
 Bairro: `Stop.bairro` é o bairro oficial (Limite de Bairros da Prefeitura),
 gravado por scripts/09_bairro_paradas.py. Sem ele, as ferramentas de bairro
 devolvem um erro explicando o que falta.
@@ -25,6 +29,7 @@ import unicodedata
 
 import pandas as pd
 
+from webapp.rag import cypher_guard
 from webapp.utils import data_fetchers as df_
 from webapp.utils import insights
 from webapp.utils.db_connections import query_neo4j, somente_leitura
@@ -155,6 +160,10 @@ def detalhes_parada(stop_id: str) -> dict:
             "reclamacoes_total": int(d["total_complaints"] or 0),
             "reclamacoes_abertas": int(d["open_complaints"] or 0),
             "acessivel_cadeira_de_rodas": d.get("wheelchair_accessible"),
+            "tiroteios_a_500m": None if d.get("tiroteios_500m_total") is None else {
+                "base_toda": d.get("tiroteios_500m_total"), "ultimos_12_meses_da_base": d.get("tiroteios_500m_12m"),
+                "base_termina_em": d.get("tiroteios_base_fim"),
+                "regra": "exposição: um tiroteio conta para todas as paradas a até 500 m; não some paradas"},
             "linhas": [{"id": r["id"], "numero": r["short_name"], "nome": r["long_name"]}
                        for r in linhas.head(MAX_LINHAS).to_dict("records")],
             "total_linhas": int(len(linhas)),
@@ -210,6 +219,34 @@ def tiroteios_parada(stop_id: str, meses=12) -> dict:
     }
 
 
+def tiroteios_bairros(ano_inicio=None, ano_fim=None, limite=10, busca: str | None = None) -> dict:
+    """Tiroteios por bairro oficial, cada ocorrência contada uma vez (nós Tiroteio do scripts/10)."""
+    n = _lim(limite, 10, 170)
+    periodo = query_neo4j("MATCH (t:Tiroteio) RETURN min(t.mes) AS ini, max(t.mes) AS fim, count(t) AS n")
+    if not periodo or not periodo[0]["n"]:
+        raise ValueError("os tiroteios ainda não estão no grafo (falta rodar scripts/10_tiroteios_neo4j.py --gravar)")
+    ini, fim = periodo[0]["ini"], periodo[0]["fim"]
+    a0 = _lim(ano_inicio, int(ini[:4]), 2100) if ano_inicio else int(ini[:4])
+    a1 = _lim(ano_fim, int(fim[:4]), 2100) if ano_fim else int(fim[:4])
+    linhas = query_neo4j("""
+        MATCH (t:Tiroteio) WHERE t.bairro IS NOT NULL AND t.ano >= $a0 AND t.ano <= $a1
+        RETURN t.bairro AS bairro, count(t) AS ocorrencias ORDER BY ocorrencias DESC
+    """, {"a0": a0, "a1": a1})
+    total_rio = sum(r["ocorrencias"] for r in linhas)
+    n_bairros = len(linhas)
+    for pos, r in enumerate(linhas, 1):  # posição no ranking geral, antes do filtro de busca
+        r["posicao"] = pos
+    if busca:
+        linhas = [r for r in linhas if _norm(busca) in _norm(r["bairro"])]
+    return {
+        "dados": {"anos": [a0, a1], "periodo_coberto_pela_base": {"primeiro_mes": ini, "ultimo_mes": fim},
+                  "total_no_municipio": total_rio, "bairros_com_ocorrencia": n_bairros, "bairros": linhas[:n],
+                  "observacao": ("Cada ocorrência conta uma vez, no bairro oficial onde caiu (só município do Rio). "
+                                 "Conta ocorrências, não vítimas. O ano final pode estar incompleto se a base terminar antes de dezembro.")},
+        "fonte": f"Fogo Cruzado no Neo4j: ocorrências por bairro oficial, {a0} a {a1}",
+    }
+
+
 def resumo_reclamacoes() -> dict:
     # Cypher próprio: get_complaints_summary lê o MongoDB, e o assistente só usa o Neo4j.
     por_servico = query_neo4j("""
@@ -256,6 +293,43 @@ def rede_em_volta(stop_id: str, saltos=1, limite=15) -> dict:
             "fonte": f"Neo4j: paradas a até {h} salto(s) de {stop_id} (CONNECTS_TO; a consulta devolve no máximo 50)"}
 
 
+MAX_CHARS_VALOR = 300  # texto longo (ex.: descrição de reclamação) é cortado na consulta livre
+
+
+def _enxugar(v):
+    if isinstance(v, str):
+        return v if len(v) <= MAX_CHARS_VALOR else v[:MAX_CHARS_VALOR] + "…"
+    if isinstance(v, dict):
+        return {k: _enxugar(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_enxugar(x) for x in v[:MAX_LINHAS]]
+    if isinstance(v, float):
+        return round(v, 4)
+    return v
+
+
+def consulta_cypher(consulta: str, objetivo: str | None = None) -> dict:
+    v = cypher_guard.validar(consulta)  # CypherBloqueado volta ao modelo como erro, com o motivo
+    try:
+        linhas = query_neo4j(v.consulta, timeout=cypher_guard.TIMEOUT_S)
+    except Exception as e:
+        msg = str(e)
+        if "TimedOut" in msg or "timed out" in msg.lower() or "Timeout" in type(e).__name__:
+            raise ValueError(f"a consulta passou de {cypher_guard.TIMEOUT_S} s e foi cancelada. "
+                             "Filtre antes (por bairro, nível ou id) e agregue com count/avg.") from e
+        if "access mode" in msg.lower() or "AccessMode" in msg:
+            raise ValueError("o banco recusou: a consulta tentou escrever, e o assistente só lê.") from e
+        raise ValueError(f"o Neo4j recusou a consulta: {msg[:250]}") from e
+    linhas = [_enxugar(l) for l in linhas]
+    descricao = (objetivo or "").strip()[:120] or "consulta livre"
+    return {
+        "dados": {"linhas": linhas, "total_linhas": len(linhas), "limite": v.limite,
+                  "pode_haver_mais": len(linhas) >= v.limite and v.limite > 0, "avisos": v.avisos},
+        "fonte": f"Neo4j (consulta livre): {descricao}",
+        "detalhe": v.consulta,
+    }
+
+
 # ------------------------------------------------------------ definições e despacho
 def _tool(nome, descricao, props: dict, obrigatorios=()):
     return {"name": nome, "description": descricao,
@@ -291,12 +365,26 @@ DEFINICOES = [
           "período devolvido. Não agrega por bairro nem por ano.",
           {"stop_id": _STOP_ID, "meses": {"type": "integer", "description": "janela em meses, de 1 a 36 (padrão 12)"}},
           ["stop_id"]),
+    _tool("tiroteios_bairros",
+          "Ocorrências de tiroteio (Fogo Cruzado) por bairro oficial do município do Rio, cada ocorrência contada uma vez, "
+          "com filtro de anos. Use para rankings e totais por bairro; NÃO some valores de paradas para isso.",
+          {"ano_inicio": {"type": "integer"}, "ano_fim": {"type": "integer"}, "limite": _LIMITE,
+           "busca": {"type": "string", "description": "filtra pelo nome do bairro"}}),
     _tool("resumo_reclamacoes",
           "Contagem de reclamações do 1746 por categoria (segurança pública, iluminação etc.), no projeto todo.", {}),
     _tool("metricas_linhas",
           "Linhas de ônibus com índice de risco médio, número de paradas e de paradas de nível alto.",
           {"ordenar_por": {"type": "string", "enum": list(ORDENS_LINHA), "description": "padrão: risco_medio"},
            "limite": _LIMITE, "busca": {"type": "string", "description": "filtra por número ou nome da linha"}}),
+    _tool("consulta_cypher",
+          "Consulta Cypher livre, SÓ LEITURA, no Neo4j do projeto. Use apenas quando nenhuma outra ferramenta responde "
+          "(cruzamentos, contagens e rankings específicos). Siga o esquema do prompt: rótulos Stop, Route, Reclamacao, "
+          "Categoria; relações SERVES, CONNECTS_TO, AFFECTS, HAS_TYPE. Uma instrução, começando com MATCH/WITH/UNWIND, "
+          "com RETURN e de preferência agregada; no máximo 50 linhas (LIMIT é aplicado), caminhos até *1..3, sem CALL, "
+          "apoc ou escrita. Timeout de " + str(cypher_guard.TIMEOUT_S) + " s. Se der erro, leia o motivo e corrija a consulta uma vez.",
+          {"consulta": {"type": "string", "description": "o Cypher, sem parâmetros ($) e sem crases"},
+           "objetivo": {"type": "string", "description": "em poucas palavras, o que a consulta busca (vira o título da fonte)"}},
+          ["consulta", "objetivo"]),
     _tool("rede_em_volta",
           "Paradas ligadas a uma parada na rede (CONNECTS_TO), com índice de risco de cada uma e a média da vizinhança.",
           {"stop_id": _STOP_ID, "saltos": {"type": "integer", "description": "1 a 3"}, "limite": _LIMITE}, ["stop_id"]),
@@ -304,7 +392,7 @@ DEFINICOES = [
 
 _FUNCOES = {f.__name__: f for f in (
     estatisticas_gerais, paradas_mais_criticas, buscar_parada, resumo_bairros, detalhes_parada,
-    reclamacoes_parada, tiroteios_parada, resumo_reclamacoes, metricas_linhas, rede_em_volta)}
+    reclamacoes_parada, tiroteios_parada, tiroteios_bairros, resumo_reclamacoes, metricas_linhas, rede_em_volta, consulta_cypher)}
 
 
 def executar(nome: str, argumentos: dict | None = None) -> dict:

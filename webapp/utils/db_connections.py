@@ -2,7 +2,7 @@ import contextlib
 import contextvars
 
 from pymongo import MongoClient
-from neo4j import GraphDatabase, READ_ACCESS
+from neo4j import GraphDatabase, Query, READ_ACCESS
 import streamlit as st
 import config
 import time
@@ -37,14 +37,16 @@ def get_mongo_db():
     client = get_mongo_client()
     return client[config.MONGO_DB]
 
-def query_neo4j(cypher_query, parameters=None):
+def query_neo4j(cypher_query, parameters=None, timeout=None):
+    """`timeout` (segundos), quando dado, vira timeout da transação: o Neo4j cancela a consulta."""
     driver = get_neo4j_driver()
     start_time = time.time()
 
     try:
         sessao = driver.session(default_access_mode=READ_ACCESS) if _somente_leitura.get() else driver.session()
         with sessao as session:
-            result = session.run(cypher_query, parameters or {})
+            consulta = Query(cypher_query, timeout=timeout) if timeout else cypher_query
+            result = session.run(consulta, parameters or {})
             records = [record.data() for record in result]
 
         duration_ms = (time.time() - start_time) * 1000

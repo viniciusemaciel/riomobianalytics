@@ -201,6 +201,9 @@ def get_stop_details(stop_id):
       COALESCE(s.total_reclamacoes, 0) as total_complaints,
       COALESCE(s.reclamacoes_abertas, 0) as open_complaints,
       s.wheelchair_accessible as wheelchair_accessible,
+      s.tiroteios_500m_total as tiroteios_500m_total,
+      s.tiroteios_500m_12m as tiroteios_500m_12m,
+      s.tiroteios_base_fim as tiroteios_base_fim,
       collect(DISTINCT r.short_name) as routes,
       count(DISTINCT rec) as active_complaints
     """

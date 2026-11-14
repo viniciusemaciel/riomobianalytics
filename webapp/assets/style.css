@@ -217,3 +217,78 @@ iframe[title="streamlit_folium.st_folium"] { border-radius: var(--rm-radius); bo
 }
 .rm-periods { display: flex; gap: 2px; margin: 0 0 16px; }
 .rm-periods > div { padding: 8px 12px; font-size: 12.5px; background: #E6EAF0; }
+
+/* ---------- Assistente ---------- */
+/* Coluna única e estreita, centrada; a caixa de pergunta acompanha (largura no próprio views/assistente.py). */
+.st-key-rm_assist { max-width: 760px; margin: 0 auto; }
+.st-key-rm_assist .rm-header { margin-bottom: 0.9rem; }
+.st-key-rm_barra { margin-bottom: 0.4rem; }
+.st-key-rm_barra [data-testid="stPopover"] button { min-height: 32px; padding: 2px 12px; font-size: 13px; border-color: var(--rm-line-strong) !important; background: #fff !important; }
+.rm-gap { margin: 1.4rem 0 0.6rem; }
+
+/* Seletor de tema: pílulas discretas, a escolhida em azul-marinho. */
+.st-key-rm_assist [data-testid="stButtonGroup"] { gap: 6px; flex-wrap: wrap; }
+.st-key-rm_assist [data-testid="stButtonGroup"] button,
+[data-testid="stPopoverBody"] [data-testid="stButtonGroup"] button { border-radius: 999px !important; border: 1px solid var(--rm-line-strong) !important; background: #fff !important; color: var(--rm-text-2) !important; font-size: 13px; padding: 4px 14px; min-height: 32px; }
+.st-key-rm_assist [data-testid="stButtonGroup"] button[aria-checked="true"],
+[data-testid="stPopoverBody"] [data-testid="stButtonGroup"] button[aria-checked="true"] { background: var(--rm-navy) !important; border-color: var(--rm-navy) !important; color: #fff !important; }
+.st-key-rm_assist [data-testid="stButtonGroup"] button p { font-weight: 500 !important; }
+.st-key-rm_assist [data-testid="stButtonGroup"] button,
+[data-testid="stPopoverBody"] [data-testid="stButtonGroup"] button { margin: 0 6px 6px 0 !important; }
+.rm-tema-desc { color: var(--rm-text-2) !important; font-size: 0.9rem; line-height: 1.5; margin: 0.15rem 0 0.55rem !important; }
+
+/* Perguntas de exemplo: linhas brancas com seta, alinhadas à esquerda. */
+[class*="st-key-"][class*="_perguntas"] .stButton > button {
+    justify-content: flex-start; text-align: left; border-radius: 10px !important;
+    border: 1px solid var(--rm-line) !important; background: #fff !important; color: var(--rm-navy) !important;
+    padding: 10px 40px 10px 14px; min-height: 0; position: relative; font-weight: 450 !important;
+}
+[class*="st-key-"][class*="_perguntas"] .stButton > button > div { width: 100%; justify-content: flex-start; }
+[class*="st-key-"][class*="_perguntas"] .stButton > button p { font-weight: 450 !important; font-size: 0.93rem; text-align: left; }
+[class*="st-key-"][class*="_perguntas"] .stButton > button::after { content: "→"; position: absolute; right: 14px; color: var(--rm-muted); }
+[class*="st-key-"][class*="_perguntas"] .stButton > button:hover { border-color: var(--rm-navy) !important; }
+[class*="st-key-"][class*="_perguntas"] .stButton > button:hover::after { color: var(--rm-navy); }
+[class*="st-key-"][class*="_perguntas"] [data-testid="stVerticalBlock"] { gap: 0.45rem; }
+
+/* Painel "O que o assistente sabe". */
+.rm-know .rm-eyebrow { margin: 14px 0 6px; }
+.rm-know .rm-eyebrow:first-child { margin-top: 2px; }
+.rm-know__list { list-style: none; margin: 0; padding: 0; }
+.rm-know__list li { display: flex; gap: 10px; padding: 6px 0; border-top: 1px solid var(--rm-line); font-size: 13.5px; color: var(--rm-navy); line-height: 1.45; }
+.rm-know__list li:first-child { border-top: 0; }
+.rm-know__list li b { font-weight: 550; flex: 0 0 38%; }
+.rm-know__list li span { color: var(--rm-text-2); }
+.rm-know__list--no li { color: var(--rm-text-2); }
+.rm-know__list--no li::before { content: "—"; color: var(--rm-muted); }
+.rm-know__p { color: var(--rm-text-2) !important; font-size: 13px; line-height: 1.55; margin: 2px 0 0 !important; }
+
+/* Mensagens: a do usuário num cartão branco; a do assistente direto no fundo creme. */
+.st-key-rm_assist [data-testid="stChatMessage"] { padding: 0.75rem 0.25rem; gap: 0.75rem; }
+.st-key-rm_assist [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarCustom"]) {
+    background: #fff; border: 1px solid var(--rm-line); border-radius: var(--rm-radius); padding: 0.6rem 0.9rem; margin: 0.6rem 0;
+}
+.st-key-rm_assist [data-testid="stChatMessage"] [data-testid="stExpander"] details { background: transparent; border-color: var(--rm-line) !important; }
+.st-key-rm_assist [data-testid="stChatMessage"] [data-testid="stExpander"] summary p { font-size: 13px; color: var(--rm-text-2); font-weight: 450; }
+
+/* Fontes: lista curta e discreta, cada uma em uma linha. */
+.rm-fontes { margin: 10px 0 6px; }
+.rm-fontes ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.rm-fontes li { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; color: var(--rm-text-2); padding: 2px 0; min-width: 0; }
+.rm-fontes__n { font-family: var(--rm-mono); font-size: 11px; color: var(--rm-navy); border: 1px solid var(--rm-line-strong); border-radius: 5px; padding: 0 5px; flex: none; }
+.rm-fontes__t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+.st-key-rm_mais { margin-top: 0.4rem; }
+.st-key-rm_mais [data-testid="stPopover"] button { border-color: var(--rm-line-strong) !important; background: #fff !important; font-size: 13px; }
+[data-testid="stPopoverBody"]:has([class*="pop_perguntas"]) { width: min(560px, 92vw) !important; }
+
+.rm-off { background: #fff; border: 1px solid var(--rm-line); border-left: 3px solid var(--rm-navy); padding: 12px 16px; margin: 0.6rem 0; color: var(--rm-text-2); font-size: 0.9rem; }
+.rm-assist-foot { text-align: center; color: var(--rm-muted) !important; font-size: 12.5px; margin: 1.6rem 0 0 !important; }
+
+@media (max-width: 640px) {
+    .st-key-rm_barra [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: 8px !important; }
+    .st-key-rm_barra [data-testid="stColumn"] { min-width: 0 !important; width: auto !important; flex: 0 0 auto !important; }
+    .st-key-rm_barra [data-testid="stColumn"]:first-child { flex: 1 1 auto !important; overflow: hidden; }
+    .st-key-rm_barra .rm-chip { max-width: 100%; overflow: hidden; white-space: nowrap; }
+    .rm-know__list li { flex-direction: column; gap: 0; }
+    .rm-know__list--no li { flex-direction: row; gap: 8px; }
+}

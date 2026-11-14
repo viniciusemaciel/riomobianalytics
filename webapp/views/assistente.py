@@ -2,6 +2,12 @@
 
 A resposta vem de `webapp.utils.assistente.responder` (agente em `webapp/rag/`);
 gráficos, tabelas e mapas das respostas são desenhados por `webapp/rag/render.py`.
+Os temas e perguntas de exemplo vêm de `webapp/rag/catalogo.py`.
+
+Layout: uma coluna estreita e centrada. Sem conversa, a tela mostra o seletor de
+temas com três perguntas do tema escolhido e o painel "O que o assistente sabe"
+(fechado). Com conversa, as sugestões ficam num popover ao fim do chat. Modelo e
+uso da sessão ficam no popover "Ajustes".
 
 Vindo do botão "Perguntar sobre esta parada" do mapa, a página recebe a parada em
 `selected_stop_id` e a marca em `state.ASSISTENTE_PARADA`: as sugestões da parada
@@ -13,7 +19,7 @@ import json
 import streamlit as st
 
 import config
-from webapp.rag import render
+from webapp.rag import catalogo, render
 from webapp.utils import assistente
 from webapp.utils.data_fetchers import get_stop_details
 from webapp.utils.state import ASSISTENTE_PARADA, get_selected, go as go_page, set_selected
@@ -21,7 +27,8 @@ from webapp.utils.theme import ASSETS_DIR, CREAM, fmt_int, normalize_level, page
 
 st.markdown(
     f"<style>[data-testid='stAppViewContainer'], [data-testid='stHeader'] {{ background: {CREAM} !important; }}"
-    f"[data-testid='stBottomBlockContainer'], [data-testid='stBottom'] > div {{ background: {CREAM} !important; }}</style>",
+    f"[data-testid='stBottomBlockContainer'], [data-testid='stBottom'] > div {{ background: {CREAM} !important; }}"
+    "[data-testid='stBottomBlockContainer'] { max-width: 920px !important; }</style>",
     unsafe_allow_html=True,
 )
 
@@ -48,94 +55,176 @@ if sel:
             "linhas": sorted({r for r in (det.get("routes") or []) if r}),
         }
 
-_, center, _ = st.columns([1, 3, 1])
-with center:
+
+# ------------------------------------------------------------------ peças
+def _sugestoes(prefixo: str) -> str | None:
+    """Seletor de tema + as três perguntas do tema. Devolve a pergunta clicada."""
+    temas = catalogo.temas(com_parada=bool(ctx))
+    ids = [t.id for t in temas]
+    chave = f"{prefixo}_tema"
+    if st.session_state.get(chave) not in ids:
+        st.session_state[chave] = ids[0]
+    st.segmented_control("Tema", ids, format_func={t.id: t.nome for t in temas}.get, key=chave,
+                         label_visibility="collapsed")
+    tema = next((t for t in temas if t.id == st.session_state.get(chave)), temas[0])
+    st.markdown(f"<p class='rm-tema-desc'>{html.escape(tema.descricao)}</p>", unsafe_allow_html=True)
+    escolhida = None
+    with st.container(key=f"{prefixo}_perguntas"):
+        for i, p in enumerate(tema.perguntas):
+            if st.button(p.texto, key=f"{prefixo}_{tema.id}_{i}", width="stretch"):
+                escolhida = p.texto
+    return escolhida
+
+
+def _o_que_sabe() -> None:
+    docs = catalogo.documentos()
+    internos = [d for d in docs if d["tipo"] != "externo"]
+    externos = [d for d in docs if d["tipo"] == "externo"]
+    linhas = "".join(f"<li><b>{html.escape(a)}</b><span>{html.escape(b)}</span></li>" for a, b in catalogo.DADOS_AO_VIVO)
+    ext = "".join(
+        f"<li><b>{html.escape(catalogo.titulo_curto(d['titulo']))}</b>"
+        f"<span>{html.escape(d['periodo_coberto'])}"
+        f"{' · acessado em ' + html.escape(d['acessado_em']) if d['acessado_em'] else ''}</span></li>" for d in externos)
+    nao = "".join(f"<li>{html.escape(t)}</li>" for t in catalogo.NAO_RESPONDE)
+    titulos = ", ".join(html.escape(catalogo.titulo_curto(d["titulo"])) for d in internos)
+    st.markdown(
+        "<div class='rm-know'>"
+        "<div class='rm-eyebrow'>Consulta ao vivo no banco</div>"
+        f"<ul class='rm-know__list'>{linhas}</ul>"
+        f"<div class='rm-eyebrow'>Documentação do projeto · {len(internos)} textos</div>"
+        f"<p class='rm-know__p'>{titulos}.</p>"
+        f"<div class='rm-eyebrow'>Fontes externas · {len(externos)} resumos</div>"
+        f"<ul class='rm-know__list'>{ext}</ul>"
+        "<p class='rm-know__p'>Sempre citadas como “segundo [fonte]”. Não são dados do projeto.</p>"
+        "<div class='rm-eyebrow'>Não responde</div>"
+        f"<ul class='rm-know__list rm-know__list--no'>{nao}</ul>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _fonte_curta(titulo: str) -> str:
+    prefixo = "Documentação do projeto: "
+    if titulo.startswith(prefixo):
+        partes = [catalogo.titulo_curto(x.strip()).replace(" > ", " › ") for x in titulo[len(prefixo):].split(";")]
+        return "Documentação · " + "; ".join(partes)
+    return titulo
+
+
+def _fontes(fontes: list[dict]) -> None:
+    itens = "".join(
+        f"<li title='{html.escape(f['titulo'])}'><span class='rm-fontes__n'>{html.escape(f['id'])}</span>"
+        f"<span class='rm-fontes__t'>{html.escape(_fonte_curta(f['titulo']))}</span></li>" for f in fontes)
+    st.markdown(f"<div class='rm-fontes'><div class='rm-eyebrow'>Fontes</div><ul>{itens}</ul></div>",
+                unsafe_allow_html=True)
+
+
+def _bastidores(msg: dict) -> None:
+    with st.expander("Como cheguei nisso"):
+        if msg.get("uso"):
+            st.caption(assistente.resumo_uso(msg["uso"], msg.get("rodadas", 0), msg.get("duracao_ms", 0),
+                                             msg.get("provedor")))
+        if msg.get("fallback"):
+            st.caption(f"Fallback: {assistente.nome_provedor(msg['fallback']['de'])} falhou "
+                       f"({msg['fallback']['motivo']}); respondido por {assistente.nome_provedor(msg.get('provedor'))}.")
+        for p in msg.get("passos", []):
+            args = json.dumps(p["argumentos"], ensure_ascii=False)
+            args = "" if args == "{}" else (args if len(args) <= 140 else args[:140] + "…")
+            st.markdown(f"- `{p['ferramenta']}` {args}{'' if p['ok'] else ' (falhou)'} · {p['duracao_ms']} ms")
+
+
+# ------------------------------------------------------------------ página
+wrap = st.container(key="rm_assist")
+sugestao = None
+with wrap:
     page_header("Assistente", "Pergunte sobre os dados",
-                "As respostas usam só os dados do projeto e mostram a fonte de cada afirmação.")
+                "Responde com os dados do projeto e a documentação dele, e mostra a fonte de cada afirmação.")
 
-    opcoes = assistente.modelos()
-    if len(opcoes) > 1:
-        ids = [o[0] for o in opcoes]
-        if st.session_state.get("rag_provedor") not in ids:
-            st.session_state.rag_provedor = ids[0]
-        st.segmented_control("Modelo", ids, format_func=dict(opcoes).get, key="rag_provedor",
-                             help="Se o modelo escolhido falhar, a pergunta é refeita no outro automaticamente.")
-    elif opcoes:
-        st.session_state.rag_provedor = opcoes[0][0]
+    with st.container(key="rm_barra"):
+        c_ctx, c_acao, c_aj = st.columns([6, 1.6, 1.2], vertical_alignment="center", gap="small")
+        if ctx:
+            c_ctx.markdown(
+                f"<span class='rm-chip'><span class='rm-chip__dot'></span><b>{html.escape(ctx['nome'] or '')}</b>"
+                f"<span style='color:#8C97A6'>índice {ctx['indice']} · {fmt_int(len(ctx['linhas']))} linhas</span></span>",
+                unsafe_allow_html=True,
+            )
+            if c_acao.button("Remover", type="tertiary", key="ctx_off"):
+                set_selected(None)
+                st.rerun()
+        else:
+            c_ctx.markdown("<span class='rm-muted'>Perguntas sobre a cidade toda.</span>", unsafe_allow_html=True)
+            if c_acao.button("Escolher parada", type="tertiary", key="ctx_pick",
+                             help="Abre o mapa para escolher uma parada como contexto"):
+                go_page("mapa")
+        with c_aj.popover("Ajustes", width="stretch"):
+            opcoes = assistente.modelos()
+            if len(opcoes) > 1:
+                ids = [o[0] for o in opcoes]
+                if st.session_state.get("rag_provedor") not in ids:
+                    st.session_state.rag_provedor = ids[0]
+                st.segmented_control("Modelo", ids, format_func=dict(opcoes).get, key="rag_provedor")
+                st.caption("Se o modelo escolhido falhar, a pergunta é refeita no outro automaticamente.")
+            elif opcoes:
+                st.session_state.rag_provedor = opcoes[0][0]
+                st.caption(f"Modelo: {opcoes[0][1]}")
+            else:
+                st.caption("Nenhum modelo configurado.")
+            n = st.session_state.get("n_perguntas", 0)
+            st.caption(f"Nesta sessão: {n} de {config.RAG_MAX_PERGUNTAS_SESSAO} perguntas"
+                       + (f" · ~US$ {st.session_state.get('custo_sessao', 0.0):.4f}" if n else ""))
+            if st.session_state.chat and st.button("Limpar conversa", type="tertiary", key="limpar"):
+                st.session_state.chat = []
+                st.rerun()
 
-    if ctx:
-        a, b = st.columns([5, 1.2], vertical_alignment="center")
-        a.markdown(
-            f"<span class='rm-chip'><span class='rm-eyebrow' style='font-size:10px'>Contexto</span>"
-            f"<span class='rm-chip__dot'></span><b>{html.escape(ctx['nome'] or '')}</b>"
-            f"<span style='color:#8C97A6'>índice {ctx['indice']} · {fmt_int(len(ctx['linhas']))} linhas</span></span>",
+    if not assistente.disponivel():
+        st.markdown(
+            "<div class='rm-off'>O assistente está desligado: falta configurar a chave de um modelo "
+            "(ANTHROPIC_API_KEY ou GEMINI_API_KEY). O restante do app funciona normalmente.</div>",
             unsafe_allow_html=True,
         )
-        if b.button("Remover", type="tertiary", key="ctx_off"):
-            set_selected(None)
-            st.rerun()
-    else:
-        a, b = st.columns([5, 1.6], vertical_alignment="center")
-        a.markdown("<span class='rm-muted'>Sem parada selecionada. As perguntas valem para a cidade toda.</span>",
-                   unsafe_allow_html=True)
-        if b.button("Escolher no mapa", type="tertiary", key="ctx_pick"):
-            go_page("mapa")
 
-    st.write("")
-    sugestao = None
     for i, msg in enumerate(st.session_state.chat):
-        with st.chat_message(msg["role"], avatar=AVATAR if msg["role"] == "assistant" else None):
+        with st.chat_message(msg["role"], avatar=AVATAR if msg["role"] == "assistant" else ":material/person:"):
             st.markdown(msg["text"])
             if msg["role"] == "user" and msg.get("parada"):
                 st.caption(f"Sobre a parada {msg['parada']}")
             if msg.get("visuais"):
                 render.desenhar(msg["visuais"], f"vis_{i}")
-            if msg.get("passos") or msg.get("uso"):
-                with st.expander("Como cheguei nisso"):
-                    if msg.get("uso"):
-                        st.caption(assistente.resumo_uso(msg["uso"], msg.get("rodadas", 0), msg.get("duracao_ms", 0),
-                                                         msg.get("provedor")))
-                    if msg.get("fallback"):
-                        st.caption(f"Fallback: {assistente.nome_provedor(msg['fallback']['de'])} falhou "
-                                   f"({msg['fallback']['motivo']}); respondido por {assistente.nome_provedor(msg.get('provedor'))}.")
-                    for p in msg.get("passos", []):
-                        st.markdown(f"- `{p['ferramenta']}` {json.dumps(p['argumentos'], ensure_ascii=False)}"
-                                    f"{'' if p['ok'] else ' (falhou)'} · {p['duracao_ms']} ms")
             if msg.get("fontes"):
-                st.markdown(
-                    "<div class='rm-eyebrow' style='margin-top:8px'>Fontes</div>"
-                    + "".join(
-                        f"<span class='rm-route' style='margin:6px 6px 0 0;display:inline-block'>{html.escape(f['id'])} · "
-                        f"{html.escape(f['titulo'])}</span>" for f in msg["fontes"]),
-                    unsafe_allow_html=True,
-                )
+                _fontes(msg["fontes"])
+            if msg.get("passos") or msg.get("uso"):
+                _bastidores(msg)
 
     if ctx is None or st.session_state.get(ASSISTENTE_PARADA) != ctx["stop_id"]:
         st.session_state.pop(ASSISTENTE_PARADA, None)
     veio_do_mapa = bool(ctx) and st.session_state.get(ASSISTENTE_PARADA) == ctx["stop_id"]
-    if not st.session_state.chat or veio_do_mapa:
-        titulo_sug = f"Sobre {ctx['nome']}" if (veio_do_mapa and st.session_state.chat) else "Sugestões"
-        st.markdown(f"<div class='rm-eyebrow' style='margin:6px 0 10px'>{html.escape(titulo_sug or '')}</div>",
-                    unsafe_allow_html=True)
-        sugs = assistente.SUGESTOES_COM_PARADA if ctx else assistente.SUGESTOES_GERAIS
-        for i, s in enumerate(sugs):
-            if st.button(s, key=f"sug_{i}"):
-                sugestao = s
 
-    if not assistente.disponivel():
-        st.markdown(
-            "<div style='background:#fff;border:1px solid #E2E6EB;border-left:3px solid #0B1F3A;border-radius:0;"
-            "padding:12px 16px;margin-top:14px' class='rm-muted'>O assistente está desligado: falta configurar a "
-            "chave de um modelo (ANTHROPIC_API_KEY ou GEMINI_API_KEY). O restante do app funciona normalmente.</div>",
-            unsafe_allow_html=True,
-        )
+    if not st.session_state.chat:
+        st.markdown("<div class='rm-eyebrow rm-gap'>O que você pode perguntar</div>", unsafe_allow_html=True)
+        sugestao = _sugestoes("ini")
+        with st.expander("O que o assistente sabe e o que não responde"):
+            _o_que_sabe()
+    elif veio_do_mapa:
+        st.markdown(f"<div class='rm-eyebrow rm-gap'>Sobre {html.escape(ctx['nome'] or 'esta parada')}</div>",
+                    unsafe_allow_html=True)
+        with st.container(key="mapa_perguntas"):
+            for i, p in enumerate(catalogo.TEMA_PARADA.perguntas):
+                if st.button(p.texto, key=f"mapa_{i}", width="stretch"):
+                    sugestao = p.texto
+    elif st.session_state.chat[-1]["role"] == "assistant":
+        with st.container(key="rm_mais"):
+            with st.popover("Sugestões de perguntas", icon=":material/lightbulb:"):
+                sugestao = _sugestoes("pop")
+                with st.expander("O que o assistente sabe"):
+                    _o_que_sabe()
 
 # A pergunta entra no histórico e a página recarrega na hora (o usuário vê a mensagem).
 # A resposta é gerada na execução seguinte, para qualquer pergunta que ainda esteja sem
 # resposta: se uma execução for interrompida no meio, a próxima retoma a pergunta, em vez
 # de deixá-la pendurada. Enquanto responde, a caixa de texto fica desativada.
 aguardando = bool(st.session_state.chat) and st.session_state.chat[-1]["role"] == "user"
-question = st.chat_input("Pergunte sobre paradas, linhas ou segurança no entorno", disabled=aguardando) or sugestao
+question = st.chat_input("Pergunte sobre paradas, bairros ou o índice",
+                         disabled=aguardando) or sugestao
 if question and not aguardando:
     st.session_state.chat.append({"role": "user", "text": question, "parada": ctx["nome"] if ctx else None})
     st.session_state.pop(ASSISTENTE_PARADA, None)
@@ -156,7 +245,7 @@ if question and not aguardando:
 if aguardando:
     pergunta = st.session_state.chat[-1]["text"]
     historico = st.session_state.chat[:-1]
-    with center, st.chat_message("assistant", avatar=AVATAR):
+    with wrap, st.chat_message("assistant", avatar=AVATAR):
         with st.status("Pensando...", expanded=True) as status:
             def _andamento(rotulo):
                 status.update(label=rotulo)
@@ -178,11 +267,6 @@ if aguardando:
                 st.session_state.chat.append({"role": "assistant", "text": f"Não consegui responder agora: {e}"})
     st.rerun()
 
-with center:
-    st.markdown(
-        "<p class='rm-muted' style='text-align:center;margin-top:1.5rem'>Responde só com os dados do projeto. "
-        "Não prevê ocorrências individuais nem recomenda rotas.</p>",
-        unsafe_allow_html=True,
-    )
-    if st.session_state.get("n_perguntas"):
-        st.caption(f"Sessão: {st.session_state.n_perguntas} pergunta(s) · ~US$ {st.session_state.get('custo_sessao', 0.0):.4f} estimados")
+with wrap:
+    st.markdown("<p class='rm-assist-foot'>O índice compara paradas. Não prevê ocorrências nem recomenda rotas.</p>",
+                unsafe_allow_html=True)

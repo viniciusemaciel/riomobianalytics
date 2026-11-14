@@ -25,6 +25,7 @@ ROTULOS_FERRAMENTA = {
     "rede_em_volta": "Consultando as paradas ligadas...",
     "consulta_cypher": "Rodando uma consulta no grafo...",
     "buscar_conhecimento": "Consultando a documentação do projeto...",
+    "o_que_posso_perguntar": "Reunindo o que eu sei responder...",
     "mostrar_grafico": "Montando o gráfico...",
     "mostrar_tabela": "Montando a tabela...",
     "mostrar_mapa": "Montando o mapa...",
@@ -88,15 +89,8 @@ def resumo_uso(uso: dict, rodadas: int, duracao_ms: int, provedor: str | None = 
             ).replace(",", ".")
 
 
-SUGESTOES_COM_PARADA = [
-    "Por que esta parada tem esse índice de risco?",
-    "Mostre os tiroteios perto desta parada mês a mês",
-    "Mostre no mapa as paradas vizinhas e o índice de cada uma",
-    "Quais linhas passam por esta parada?",
-]
+# Perguntas de exemplo: a lista completa, por tema, fica em webapp/rag/catalogo.py.
+from webapp.rag.catalogo import TEMA_PARADA as _TP, TEMAS as _TEMAS  # noqa: E402
 
-SUGESTOES_GERAIS = [
-    "Mostre no mapa as 10 paradas com maior índice de risco",
-    "Quais bairros têm mais paradas de nível alto? Mostre num gráfico",
-    "Quais linhas passam por mais paradas de nível alto?",
-]
+SUGESTOES_COM_PARADA = [p.texto for p in _TP.perguntas]
+SUGESTOES_GERAIS = [p.texto for p in _TEMAS[0].perguntas]

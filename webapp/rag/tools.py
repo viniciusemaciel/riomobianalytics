@@ -40,7 +40,7 @@ import unicodedata
 
 import pandas as pd
 
-from webapp.rag import conhecimento, cypher_guard, visuais
+from webapp.rag import catalogo, conhecimento, cypher_guard, visuais
 from webapp.utils import data_fetchers as df_
 from webapp.utils import insights
 from webapp.utils.db_connections import query_neo4j, somente_leitura
@@ -331,6 +331,11 @@ def buscar_conhecimento(pergunta: str) -> dict:
     }
 
 
+def o_que_posso_perguntar() -> dict:
+    """Temas, exemplos, dados ao vivo, documentação e o que o assistente não responde (sem busca, sem banco)."""
+    return {"dados": catalogo.como_dict(), "fonte": ""}
+
+
 MAX_CHARS_VALOR = 300  # texto longo (ex.: descrição de reclamação) é cortado na consulta livre
 
 
@@ -467,6 +472,10 @@ DEFINICOES = [
           "bairros ou linhas: para isso use as outras ferramentas.",
           {"pergunta": {"type": "string", "description": "a dúvida reescrita em uma frase completa e autossuficiente, em português"}},
           ["pergunta"]),
+    _tool("o_que_posso_perguntar",
+          "Lista o que o assistente sabe e o que dá para perguntar: temas com exemplos, dados consultados ao vivo, "
+          "documentos do projeto, fontes externas e o que ele não responde. Use quando perguntarem o que você sabe, "
+          "o que podem perguntar ou como você pode ajudar. Não serve para responder a dúvida em si.", {}),
     _tool("rede_em_volta",
           "Paradas ligadas a uma parada na rede (CONNECTS_TO), com índice de risco de cada uma e a média da vizinhança.",
           {"stop_id": _STOP_ID, "saltos": {"type": "integer", "description": "1 a 3"}, "limite": _LIMITE}, ["stop_id"]),
@@ -511,7 +520,7 @@ DEFINICOES = [
 
 _FUNCOES = {f.__name__: f for f in (
     estatisticas_gerais, paradas_mais_criticas, buscar_parada, resumo_bairros, detalhes_parada,
-    reclamacoes_parada, tiroteios_parada, tiroteios_bairros, resumo_reclamacoes, metricas_linhas, rede_em_volta, consulta_cypher, buscar_conhecimento,
+    reclamacoes_parada, tiroteios_parada, tiroteios_bairros, resumo_reclamacoes, metricas_linhas, rede_em_volta, consulta_cypher, buscar_conhecimento, o_que_posso_perguntar,
     mostrar_grafico, mostrar_tabela, mostrar_mapa)}
 
 VISUAIS = {"mostrar_grafico", "mostrar_tabela", "mostrar_mapa"}

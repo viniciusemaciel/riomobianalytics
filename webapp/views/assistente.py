@@ -20,6 +20,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+AVATAR = str(ASSETS_DIR / "logo_mark.png")
+
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
@@ -75,9 +77,9 @@ with center:
             go_page("mapa")
 
     st.write("")
-    pending = None
+    sugestao = None
     for msg in st.session_state.chat:
-        with st.chat_message(msg["role"], avatar=str(ASSETS_DIR / "logo_mark.png") if msg["role"] == "assistant" else None):
+        with st.chat_message(msg["role"], avatar=AVATAR if msg["role"] == "assistant" else None):
             st.markdown(msg["text"])
             if msg.get("passos") or msg.get("uso"):
                 with st.expander("Como cheguei nisso"):
@@ -104,7 +106,7 @@ with center:
         sugs = assistente.SUGESTOES_COM_PARADA if ctx else assistente.SUGESTOES_GERAIS
         for i, s in enumerate(sugs):
             if st.button(s, key=f"sug_{i}"):
-                pending = s
+                sugestao = s
 
     if not assistente.disponivel():
         st.markdown(
@@ -114,9 +116,13 @@ with center:
             unsafe_allow_html=True,
         )
 
-question = st.chat_input("Pergunte sobre paradas, linhas ou segurança no entorno") or pending
-if question:
-    historico = list(st.session_state.chat)
+# A pergunta entra no histórico e a página recarrega na hora (o usuário vê a mensagem).
+# A resposta é gerada na execução seguinte, para qualquer pergunta que ainda esteja sem
+# resposta: se uma execução for interrompida no meio, a próxima retoma a pergunta, em vez
+# de deixá-la pendurada. Enquanto responde, a caixa de texto fica desativada.
+aguardando = bool(st.session_state.chat) and st.session_state.chat[-1]["role"] == "user"
+question = st.chat_input("Pergunte sobre paradas, linhas ou segurança no entorno", disabled=aguardando) or sugestao
+if question and not aguardando:
     st.session_state.chat.append({"role": "user", "text": question})
     if not assistente.disponivel():
         st.session_state.chat.append({
@@ -130,23 +136,30 @@ if question:
         })
     else:
         st.session_state.n_perguntas = st.session_state.get("n_perguntas", 0) + 1
-        with center:
-            with st.status("Pensando...", expanded=False) as status:
-                try:
-                    ans = assistente.responder(question, ctx, historico,
-                                               ao_chamar=lambda rotulo: status.update(label=rotulo),
-                                               provedor=st.session_state.get("rag_provedor"),
-                                               ao_trocar=lambda rotulo: status.update(label=rotulo))
-                    status.update(label="Pronto", state="complete")
-                    st.session_state.chat.append({"role": "assistant", "text": ans.get("texto", ""),
-                                                  "fontes": ans.get("fontes", []), "passos": ans.get("passos", []),
-                                                  "uso": ans.get("uso"), "rodadas": ans.get("rodadas", 0),
-                                                  "duracao_ms": ans.get("duracao_ms", 0),
-                                                  "provedor": ans.get("provedor"), "fallback": ans.get("fallback")})
-                    st.session_state.custo_sessao = st.session_state.get("custo_sessao", 0.0) + assistente.custo_estimado(ans.get("uso") or {}, ans.get("provedor"))
-                except Exception as e:
-                    status.update(label="Não consegui responder", state="error")
-                    st.session_state.chat.append({"role": "assistant", "text": f"Não consegui responder agora: {e}"})
+    st.rerun()
+
+if aguardando:
+    pergunta = st.session_state.chat[-1]["text"]
+    historico = st.session_state.chat[:-1]
+    with center, st.chat_message("assistant", avatar=AVATAR):
+        with st.status("Pensando...", expanded=True) as status:
+            def _andamento(rotulo):
+                status.update(label=rotulo)
+                status.caption(rotulo)
+
+            _andamento("Lendo a pergunta...")
+            try:
+                ans = assistente.responder(pergunta, ctx, historico, ao_chamar=_andamento,
+                                           provedor=st.session_state.get("rag_provedor"), ao_trocar=_andamento)
+                st.session_state.chat.append({"role": "assistant", "text": ans.get("texto", ""),
+                                              "fontes": ans.get("fontes", []), "passos": ans.get("passos", []),
+                                              "uso": ans.get("uso"), "rodadas": ans.get("rodadas", 0),
+                                              "duracao_ms": ans.get("duracao_ms", 0),
+                                              "provedor": ans.get("provedor"), "fallback": ans.get("fallback")})
+                st.session_state.custo_sessao = st.session_state.get("custo_sessao", 0.0) + assistente.custo_estimado(ans.get("uso") or {}, ans.get("provedor"))
+            except Exception as e:
+                status.update(label="Não consegui responder", state="error")
+                st.session_state.chat.append({"role": "assistant", "text": f"Não consegui responder agora: {e}"})
     st.rerun()
 
 with center:

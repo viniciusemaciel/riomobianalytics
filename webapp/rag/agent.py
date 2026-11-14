@@ -47,6 +47,9 @@ class Resultado:
     rodadas: int = 0
     limite_de_rodadas: bool = False
     duracao_ms: int = 0
+    provedor: str = ""
+    modelo: str = ""
+    fallback: dict | None = None    # {"de": provedor que falhou, "motivo": mensagem curta}
 
     def como_dict(self) -> dict:
         """Formato que a página já espera (`texto`, `fontes`) mais os passos para o expansor."""
@@ -57,6 +60,9 @@ class Resultado:
             "uso": self.uso,
             "rodadas": self.rodadas,
             "duracao_ms": self.duracao_ms,
+            "provedor": self.provedor,
+            "modelo": self.modelo,
+            "fallback": self.fallback,
         }
 
 
@@ -97,34 +103,18 @@ def _serializar(resultado: dict) -> str:
     return texto
 
 
-def responder(
-    pergunta: str,
-    *,
-    system_prompt: str,
-    ferramentas,
-    historico: list[dict] | None = None,
-    contexto: dict | None = None,
-    ao_chamar=None,
-    modelo_llm=llm,
-) -> Resultado:
-    """Responde a uma pergunta.
-
-    `historico`: mensagens anteriores da conversa, sem a pergunta atual.
-    `ao_chamar(nome, argumentos)`: callback opcional, chamado antes de cada
-    ferramenta (a página usa para atualizar o `st.status`).
-    `modelo_llm`: módulo com `chamar`, trocável em testes.
-    """
-    inicio = time.time()
+def _rodar(pergunta, *, system_prompt, ferramentas, historico, contexto, ao_chamar, modelo_llm, provedor) -> Resultado:
+    """O loop de tool calling com um único provedor. Erros do modelo (ErroLLM) sobem."""
     msgs = _historico_para_mensagens(historico, config.RAG_MAX_HISTORICO)
     msgs.append({"role": "user", "content": _texto_contexto(contexto) + pergunta})
 
-    res = Resultado(texto="")
+    res = Resultado(texto="", provedor=provedor or "")
     fontes: dict[str, str] = {}          # chave da fonte -> id
     info_fontes: list[dict] = []
     resposta = None
 
     for rodada in range(1, config.RAG_MAX_RODADAS + 1):
-        resposta = modelo_llm.chamar(system_prompt, msgs, ferramentas.DEFINICOES)
+        resposta = modelo_llm.chamar(system_prompt, msgs, ferramentas.DEFINICOES, provedor=provedor)
         res.rodadas = rodada
         for k in res.uso:
             res.uso[k] += resposta.uso.get(k, 0)
@@ -151,7 +141,7 @@ def responder(
                 bloco = {"type": "tool_result", "tool_use_id": ch.id, "content": _serializar(payload)}
                 res.passos.append(Passo(ch.nome, ch.argumentos, True, saida.get("fonte") or "",
                                         int((time.time() - t0) * 1000), fonte_id))
-            except Exception as e:  # erro volta ao modelo como texto curto, nunca para a tela
+            except Exception as e:  # erro de ferramenta volta ao modelo como texto curto, nunca para a tela
                 msg = f"Erro ao executar {ch.nome}: {str(e)[:300]}"
                 bloco = {"type": "tool_result", "tool_use_id": ch.id, "content": msg, "is_error": True}
                 res.passos.append(Passo(ch.nome, ch.argumentos, False, msg, int((time.time() - t0) * 1000)))
@@ -162,7 +152,8 @@ def responder(
         res.limite_de_rodadas = True
         msgs.append({"role": "user", "content": [{"type": "text", "text":
                      "Limite de consultas atingido. Responda agora só com o que já foi consultado e diga o que faltou."}]})
-        resposta = modelo_llm.chamar(system_prompt, msgs, ferramentas.DEFINICOES, permitir_ferramentas=False)
+        resposta = modelo_llm.chamar(system_prompt, msgs, ferramentas.DEFINICOES,
+                                     provedor=provedor, permitir_ferramentas=False)
         for k in res.uso:
             res.uso[k] += resposta.uso.get(k, 0)
 
@@ -170,5 +161,49 @@ def responder(
     # Mostra só as fontes citadas no texto; se o modelo não citou nenhuma, mostra todas as usadas.
     citadas = set(re.findall(r"\[(\d+)\]", res.texto))
     res.fontes = [f for f in info_fontes if f["id"] in citadas] or info_fontes
+    return res
+
+
+def responder(
+    pergunta: str,
+    *,
+    system_prompt: str,
+    ferramentas,
+    historico: list[dict] | None = None,
+    contexto: dict | None = None,
+    ao_chamar=None,
+    modelo_llm=llm,
+    provedor: str | None = None,
+    fallback: bool | None = None,
+    ao_trocar=None,
+) -> Resultado:
+    """Responde a uma pergunta.
+
+    `historico`: mensagens anteriores da conversa, sem a pergunta atual.
+    `ao_chamar(nome, argumentos)`: callback opcional antes de cada ferramenta.
+    `provedor`: "anthropic" ou "gemini" (padrão: o primeiro configurado).
+    `fallback`: se o provedor falhar, refaz a pergunta inteira no outro
+      configurado (padrão: config.RAG_FALLBACK). A pergunta recomeça do zero no
+      outro modelo para não misturar formatos de ferramenta entre provedores.
+    `ao_trocar(de, para, motivo)`: callback opcional quando o fallback entra.
+    `modelo_llm`: módulo com `chamar`, `provedor_padrao`, `alternativo` e `PROVEDORES`, trocável em testes.
+    """
+    inicio = time.time()
+    fallback = config.RAG_FALLBACK if fallback is None else fallback
+    atual = provedor or modelo_llm.provedor_padrao()
+    kw = dict(system_prompt=system_prompt, ferramentas=ferramentas, historico=historico,
+              contexto=contexto, ao_chamar=ao_chamar, modelo_llm=modelo_llm)
+    try:
+        res = _rodar(pergunta, provedor=atual, **kw)
+    except llm.ErroLLM as e:
+        outro = modelo_llm.alternativo(atual) if (fallback and atual) else None
+        if not outro:
+            raise
+        if ao_trocar:
+            ao_trocar(atual, outro, str(e))
+        res = _rodar(pergunta, provedor=outro, **kw)
+        res.fallback = {"de": atual, "motivo": str(e)}
+    p = modelo_llm.PROVEDORES.get(res.provedor)
+    res.modelo = p.nome if p else res.provedor
     res.duracao_ms = int((time.time() - inicio) * 1000)
     return res

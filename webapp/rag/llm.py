@@ -1,12 +1,15 @@
-"""Cliente do modelo de linguagem (Anthropic).
+"""Camada de modelos: um formato comum para o agente e um adaptador por provedor.
 
-Uma única função, `chamar`, devolve a resposta já normalizada para o agente,
-sem expor tipos do SDK. O SDK é importado só na primeira chamada, então o
-resto do pacote pode ser testado sem a dependência instalada.
+O agente conversa sempre no formato de mensagens da Anthropic (role + blocos
+text / tool_use / tool_result). Cada provedor converte esse formato para a
+sua API e devolve uma `Resposta` normalizada. Provedores:
 
-Prompt caching: o prompt de sistema e a última definição de ferramenta levam
-`cache_control`, então as rodadas seguintes da mesma pergunta (e perguntas
-seguidas) reaproveitam esse prefixo.
+    anthropic  Claude (Haiku por padrão)       -> provedor_anthropic.py
+    gemini     Google Gemini (Flash por padrão) -> provedor_gemini.py
+
+Os SDKs só são importados na primeira chamada, então o pacote pode ser
+testado sem eles. Chaves ausentes não quebram nada: o provedor só não aparece
+em `disponiveis()`.
 """
 from __future__ import annotations
 
@@ -35,29 +38,51 @@ class Resposta:
     uso: dict = field(default_factory=dict)
 
 
-_client = None
+@dataclass(frozen=True)
+class Provedor:
+    id: str
+    nome: str               # rótulo na tela
+    modelo: str
+    preco_entrada: float    # US$ por 1M tokens (estimativa)
+    preco_saida: float
+
+    def configurado(self) -> bool:
+        return bool(config.ANTHROPIC_API_KEY if self.id == "anthropic" else config.GEMINI_API_KEY)
+
+
+def _nome_modelo(m: str) -> str:
+    return m.replace("claude-", "Claude ").replace("gemini-", "Gemini ").replace("-", " ").title().replace(" 5 5", " 5.5").replace(" Lite", "-Lite")
+
+
+PROVEDORES: dict[str, Provedor] = {
+    "anthropic": Provedor("anthropic", _nome_modelo(config.RAG_MODEL), config.RAG_MODEL,
+                          config.RAG_PRECO_ENTRADA_MTOK, config.RAG_PRECO_SAIDA_MTOK),
+    "gemini": Provedor("gemini", _nome_modelo(config.RAG_MODEL_GEMINI), config.RAG_MODEL_GEMINI,
+                       config.RAG_PRECO_GEMINI_ENTRADA_MTOK, config.RAG_PRECO_GEMINI_SAIDA_MTOK),
+}
+
+
+def disponiveis() -> list[Provedor]:
+    """Provedores com chave configurada, o padrão primeiro."""
+    ps = [p for p in PROVEDORES.values() if p.configurado()]
+    return sorted(ps, key=lambda p: p.id != config.RAG_PROVEDOR_PADRAO)
 
 
 def chave_configurada() -> bool:
-    return bool(config.ANTHROPIC_API_KEY)
+    return bool(disponiveis())
 
 
-def _get_client():
-    global _client
-    if _client is None:
-        if not chave_configurada():
-            raise ErroLLM("ANTHROPIC_API_KEY não configurada.")
-        import anthropic
-        _client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY, max_retries=2, timeout=60.0)
-    return _client
+def provedor_padrao() -> str | None:
+    ps = disponiveis()
+    return ps[0].id if ps else None
 
 
-def _com_cache(ferramentas: list[dict]) -> list[dict]:
-    if not ferramentas:
-        return []
-    copia = [dict(f) for f in ferramentas]
-    copia[-1]["cache_control"] = {"type": "ephemeral"}
-    return copia
+def alternativo(provedor: str) -> str | None:
+    """O outro provedor configurado, para o fallback."""
+    for p in disponiveis():
+        if p.id != provedor:
+            return p.id
+    return None
 
 
 def chamar(
@@ -65,52 +90,20 @@ def chamar(
     mensagens: list[dict],
     ferramentas: list[dict] | None = None,
     *,
+    provedor: str | None = None,
     permitir_ferramentas: bool = True,
     max_tokens: int = 1200,
-    modelo: str | None = None,
 ) -> Resposta:
-    """Uma chamada ao modelo. `mensagens` segue o formato da API (role + content)."""
-    import anthropic
-
-    client = _get_client()
-    kwargs = dict(
-        model=modelo or config.RAG_MODEL,
-        max_tokens=max_tokens,
-        system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-        messages=mensagens,
-    )
-    if ferramentas:
-        kwargs["tools"] = _com_cache(ferramentas)
-        if not permitir_ferramentas:
-            # Mantém as definições (a API exige quando há tool_use no histórico), mas proíbe novas chamadas.
-            kwargs["tool_choice"] = {"type": "none"}
-
-    try:
-        r = client.messages.create(**kwargs)
-    except anthropic.AuthenticationError as e:
-        raise ErroLLM("A chave da API foi recusada.") from e
-    except anthropic.RateLimitError as e:
-        raise ErroLLM("Limite de uso da API atingido. Tente de novo em instantes.") from e
-    except anthropic.APIConnectionError as e:
-        raise ErroLLM("Sem conexão com a API do modelo.") from e
-    except anthropic.APIStatusError as e:
-        raise ErroLLM(f"A API do modelo devolveu erro {e.status_code}.") from e
-
-    texto, chamadas, conteudo = [], [], []
-    for b in r.content:
-        if b.type == "text":
-            texto.append(b.text)
-            conteudo.append({"type": "text", "text": b.text})
-        elif b.type == "tool_use":
-            chamadas.append(ChamadaFerramenta(id=b.id, nome=b.name, argumentos=dict(b.input or {})))
-            conteudo.append({"type": "tool_use", "id": b.id, "name": b.name, "input": dict(b.input or {})})
-
-    u = r.usage
-    uso = {
-        "entrada": getattr(u, "input_tokens", 0) or 0,
-        "saida": getattr(u, "output_tokens", 0) or 0,
-        "cache_leitura": getattr(u, "cache_read_input_tokens", 0) or 0,
-        "cache_escrita": getattr(u, "cache_creation_input_tokens", 0) or 0,
-    }
-    return Resposta(texto="".join(texto).strip(), chamadas=chamadas, parou_por=r.stop_reason or "",
-                    conteudo=conteudo, uso=uso)
+    """Uma chamada ao modelo do `provedor` (padrão: o primeiro disponível)."""
+    pid = provedor or provedor_padrao()
+    if pid is None:
+        raise ErroLLM("Nenhuma chave de modelo configurada.")
+    p = PROVEDORES.get(pid)
+    if p is None or not p.configurado():
+        raise ErroLLM(f"O provedor {pid} não está configurado.")
+    if pid == "anthropic":
+        from . import provedor_anthropic as mod
+    else:
+        from . import provedor_gemini as mod
+    return mod.chamar(system, mensagens, ferramentas or [], modelo=p.modelo,
+                      permitir_ferramentas=permitir_ferramentas, max_tokens=max_tokens)

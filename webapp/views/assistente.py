@@ -46,6 +46,16 @@ with center:
     page_header("Assistente", "Pergunte sobre os dados",
                 "As respostas usam só os dados do projeto e mostram a fonte de cada afirmação.")
 
+    opcoes = assistente.modelos()
+    if len(opcoes) > 1:
+        ids = [o[0] for o in opcoes]
+        if st.session_state.get("rag_provedor") not in ids:
+            st.session_state.rag_provedor = ids[0]
+        st.segmented_control("Modelo", ids, format_func=dict(opcoes).get, key="rag_provedor",
+                             help="Se o modelo escolhido falhar, a pergunta é refeita no outro automaticamente.")
+    elif opcoes:
+        st.session_state.rag_provedor = opcoes[0][0]
+
     if ctx:
         a, b = st.columns([5, 1.2], vertical_alignment="center")
         a.markdown(
@@ -72,7 +82,11 @@ with center:
             if msg.get("passos") or msg.get("uso"):
                 with st.expander("Como cheguei nisso"):
                     if msg.get("uso"):
-                        st.caption(assistente.resumo_uso(msg["uso"], msg.get("rodadas", 0), msg.get("duracao_ms", 0)))
+                        st.caption(assistente.resumo_uso(msg["uso"], msg.get("rodadas", 0), msg.get("duracao_ms", 0),
+                                                         msg.get("provedor")))
+                    if msg.get("fallback"):
+                        st.caption(f"Fallback: {assistente.nome_provedor(msg['fallback']['de'])} falhou "
+                                   f"({msg['fallback']['motivo']}); respondido por {assistente.nome_provedor(msg.get('provedor'))}.")
                     for p in msg.get("passos", []):
                         st.markdown(f"- `{p['ferramenta']}` {json.dumps(p['argumentos'], ensure_ascii=False)}"
                                     f"{'' if p['ok'] else ' (falhou)'} · {p['duracao_ms']} ms")
@@ -96,7 +110,7 @@ with center:
         st.markdown(
             "<div style='background:#fff;border:1px solid #E2E6EB;border-left:3px solid #0B1F3A;border-radius:0;"
             "padding:12px 16px;margin-top:14px' class='rm-muted'>O assistente está desligado: falta configurar a "
-            "chave do modelo (ANTHROPIC_API_KEY). O restante do app funciona normalmente.</div>",
+            "chave de um modelo (ANTHROPIC_API_KEY ou GEMINI_API_KEY). O restante do app funciona normalmente.</div>",
             unsafe_allow_html=True,
         )
 
@@ -119,13 +133,17 @@ if question:
         with center:
             with st.status("Pensando...", expanded=False) as status:
                 try:
-                    ans = assistente.responder(question, ctx, historico, ao_chamar=lambda rotulo: status.update(label=rotulo))
+                    ans = assistente.responder(question, ctx, historico,
+                                               ao_chamar=lambda rotulo: status.update(label=rotulo),
+                                               provedor=st.session_state.get("rag_provedor"),
+                                               ao_trocar=lambda rotulo: status.update(label=rotulo))
                     status.update(label="Pronto", state="complete")
                     st.session_state.chat.append({"role": "assistant", "text": ans.get("texto", ""),
                                                   "fontes": ans.get("fontes", []), "passos": ans.get("passos", []),
                                                   "uso": ans.get("uso"), "rodadas": ans.get("rodadas", 0),
-                                                  "duracao_ms": ans.get("duracao_ms", 0)})
-                    st.session_state.custo_sessao = st.session_state.get("custo_sessao", 0.0) + assistente.custo_estimado(ans.get("uso") or {})
+                                                  "duracao_ms": ans.get("duracao_ms", 0),
+                                                  "provedor": ans.get("provedor"), "fallback": ans.get("fallback")})
+                    st.session_state.custo_sessao = st.session_state.get("custo_sessao", 0.0) + assistente.custo_estimado(ans.get("uso") or {}, ans.get("provedor"))
                 except Exception as e:
                     status.update(label="Não consegui responder", state="error")
                     st.session_state.chat.append({"role": "assistant", "text": f"Não consegui responder agora: {e}"})

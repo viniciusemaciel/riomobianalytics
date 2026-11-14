@@ -55,11 +55,17 @@ NEO4J_PASSWORD = _secret("NEO4J_PASSWORD", default="password")
 # ---------------- Assistente (RAG) ----------------
 ANTHROPIC_API_KEY = _secret("ANTHROPIC_API_KEY")
 RAG_MODEL = _secret("RAG_MODEL", default="claude-haiku-5-5")
+GEMINI_API_KEY = _secret("GEMINI_API_KEY", "GOOGLE_API_KEY")
+RAG_MODEL_GEMINI = _secret("RAG_MODEL_GEMINI", default="gemini-3.5-flash-lite")  # plano gratuito: ~500 req/dia
+RAG_PROVEDOR_PADRAO = _secret("RAG_PROVEDOR_PADRAO", default="anthropic")   # anthropic | gemini
+RAG_FALLBACK = (_secret("RAG_FALLBACK", default="true") or "").lower() in ("1", "true", "sim", "yes")
 RAG_MAX_PERGUNTAS_SESSAO = int(_secret("RAG_MAX_PERGUNTAS_SESSAO", default="30"))
 RAG_MAX_RODADAS = 6        # rodadas de ferramenta por pergunta
 RAG_MAX_HISTORICO = 10     # mensagens do histórico enviadas ao modelo
 RAG_PRECO_ENTRADA_MTOK = float(_secret("RAG_PRECO_ENTRADA_MTOK", default="0.10"))  # US$ por 1M tokens (estimativa)
 RAG_PRECO_SAIDA_MTOK = float(_secret("RAG_PRECO_SAIDA_MTOK", default="0.50"))
+RAG_PRECO_GEMINI_ENTRADA_MTOK = float(_secret("RAG_PRECO_GEMINI_ENTRADA_MTOK", default="0"))  # plano gratuito; 0.30 se ativar cobrança
+RAG_PRECO_GEMINI_SAIDA_MTOK = float(_secret("RAG_PRECO_GEMINI_SAIDA_MTOK", default="0"))  # 2.50 se ativar cobrança
 
 # ---------------- Caminhos ----------------
 DATA_DIR = BASE_DIR / "data"

@@ -9,7 +9,7 @@ import streamlit as st
 from webapp.utils.data_fetchers import get_stop_neighborhood, get_stops_with_risk
 from webapp.utils.state import ask_about, get_selected, go as go_page, set_selected
 from webapp.utils.theme import (
-    LINE, MUTED, NAVY, ORANGE, empty_state, fmt_int, get_risk_color, level_legend,
+    MUTED, NAVY, ORANGE, empty_state, fmt_int, get_risk_color, level_legend,
     normalize_level, note, page_header, plotly_layout,
 )
 
@@ -41,6 +41,56 @@ def radial_layout(G: nx.Graph, origin: str, dist: dict) -> dict:
         r = dist.get(n, 0) * RING
         pos[n] = (r * math.cos(a), -r * math.sin(a))
     return pos
+
+
+def _curto(nome: str, n: int = 22) -> str:
+    nome = nome.split(" :: ")[0]
+    return nome if len(nome) <= n else nome[: n - 1].rstrip() + "…"
+
+
+def rotulos_sem_sobreposicao(nos: list, pos: dict, origin, hops: int) -> list[tuple]:
+    """Escolhe, para cada nome, uma posição que não colida com outro nome nem com os pontos.
+
+    Tenta, nesta ordem: para fora (direita ou esquerda, conforme o lado), acima, abaixo e para
+    dentro. Se nenhuma couber, o nome fica só na lista ao lado do grafo. As medidas em unidades
+    do gráfico supõem a largura de um celular (~330 px): no desktop sobra folga, no celular não
+    há sobreposição. Devolve (nó, texto, textposition do Plotly).
+    """
+    unid = 330 / (2 * (hops + 1.35))          # px por unidade do gráfico, no pior caso (celular)
+    cw, h, gap = 6.6 / unid, 17 / unid, 9 / unid
+    xmax, ymax = hops + 1.35, hops + 0.45
+    caixas = [(-0.35, 0.35, -0.35, 0.35 + h + gap)]  # ponto e nome da origem
+    caixas += [(pos[n][0] - 0.12, pos[n][0] + 0.12, pos[n][1] - 0.12, pos[n][1] + 0.12) for n in pos if n != origin]
+
+    def livre(c):
+        x0, x1, y0, y1 = c
+        if x0 < -xmax or x1 > xmax or y0 < -ymax or y1 > ymax:
+            return False
+        return all(x1 <= a0 or x0 >= a1 or y1 <= b0 or y0 >= b1 for a0, a1, b0, b1 in caixas)
+
+    escolhidos = []
+    for n in nos:
+        x, y = pos[n]
+        texto = _curto(info[n]["name"])
+        w = len(texto) * cw
+        fora = 1 if x >= 0 else -1
+        opcoes = [
+            ((x + gap, x + gap + w) if fora > 0 else (x - gap - w, x - gap), (y - h / 2, y + h / 2),
+             "middle right" if fora > 0 else "middle left", True),
+            ((x - w / 2, x + w / 2), (y + gap, y + gap + h), "top center", False),
+            ((x - w / 2, x + w / 2), (y - gap - h, y - gap), "bottom center", False),
+            ((x - gap - w, x - gap) if fora > 0 else (x + gap, x + gap + w), (y - h / 2, y + h / 2),
+             "middle left" if fora > 0 else "middle right", True),
+        ]
+        for (x0, x1), (y0, y1), tp, lateral in opcoes:
+            c = (x0, x1, y0, y1)
+            if livre(c):
+                caixas.append(c)
+                if lateral:
+                    texto = ("  " + texto) if tp == "middle right" else (texto + "  ")
+                escolhidos.append((n, texto, tp))
+                break
+    return escolhidos
 
 
 try:
@@ -127,20 +177,21 @@ fig.add_trace(go.Scatter(
                   "<br>a %{customdata[3]} parada(s) da origem<extra></extra>",
 ))
 if show_names and top:
-    fig.add_trace(go.Scatter(
-        x=[pos[n][0] for n in top], y=[pos[n][1] for n in top], mode="text",
-        text=[("   " + info[n]["name"].split(" :: ")[0]) if pos[n][0] >= 0 else (info[n]["name"].split(" :: ")[0] + "   ") for n in top],
-        textposition=["middle right" if pos[n][0] >= 0 else "middle left" for n in top],
-        textfont=dict(size=12, color=NAVY), hoverinfo="skip",
-    ))
+    rot = rotulos_sem_sobreposicao(top, pos, origin, hops)
+    if rot:
+        fig.add_trace(go.Scatter(
+            x=[pos[n][0] for n, _, _ in rot], y=[pos[n][1] for n, _, _ in rot], mode="text",
+            text=[t for _, t, _ in rot], textposition=[tp for _, _, tp in rot],
+            textfont=dict(size=12, color=NAVY), hoverinfo="skip",
+        ))
 fig.add_trace(go.Scatter(
     x=[0], y=[0], mode="markers+text" if show_names else "markers",
     marker=dict(size=22, color=NAVY, line=dict(color="rgba(11,31,58,.25)", width=8)),
-    text=[info[origin]["name"].split(" :: ")[0]], textposition="top center",
+    text=[_curto(info[origin]["name"], 26)], textposition="top center",
     textfont=dict(size=13, color=NAVY), hovertemplate=f"<b>{html.escape(info[origin]['name'])}</b> · origem<extra></extra>",
 ))
 lim = hops + 0.45
-plotly_layout(fig, height=560, margin=dict(l=4, r=4, t=4, b=4))
+plotly_layout(fig, height=500, margin=dict(l=4, r=4, t=4, b=4))
 fig.update_xaxes(visible=False, range=[-lim - (0.9 if show_names else 0), lim + (0.9 if show_names else 0)])
 fig.update_yaxes(visible=False, range=[-lim, lim], scaleanchor="x", scaleratio=1)
 fig.update_layout(dragmode="pan")

@@ -6,7 +6,8 @@ Fluxo:
 1. Carrega modelo XGBoost, scaler e metadata de artifacts/
 2. Obtém features estáticas do Neo4j (lat, lon, num_rotas_servindo, pagerank)
 3. Calcula features de lag (3m/6m/12m) dos chamados por stop via Neo4j
-4. Gera features temporais (ano, mes_sin, mes_cos) para o mês corrente
+4. Gera features temporais (ano, mes_sin, mes_cos) para o mês seguinte à data de referência
+   (--data-ref, padrão 2025-12-31, o fim das bases; não depende do dia em que o script roda)
 5. Prediz risk_score_tiroteio com XGBoost
 6. Calcula risk_score_total = (0.6 * atual + 1.4 * tiroteio) / 2
 7. Normaliza 0–100, classifica em tercis (Alto / Médio / Baixo)
@@ -16,7 +17,7 @@ Fluxo:
 import json
 import math
 import sys
-from datetime import datetime, date
+from datetime import date
 from dateutil.relativedelta import relativedelta
 
 import joblib
@@ -37,7 +38,8 @@ PESO_TIROTEIO = 1.4
 
 
 class RiskPredictor:
-    def __init__(self):
+    def __init__(self, data_ref: date | None = None):
+        self.data_ref = data_ref or date.fromisoformat(DATA_REF_PADRAO)
         self.driver = GraphDatabase.driver(
             config.NEO4J_URI,
             auth=(config.NEO4J_USER, config.NEO4J_PASSWORD),
@@ -66,23 +68,24 @@ class RiskPredictor:
 
     def _compute_date_windows(self):
         """
-        Define as janelas de lag com base no mês corrente.
+        Define as janelas de lag a partir da data de referência (--data-ref).
 
-        Para o mês M (ex: agosto/2026), as janelas usam dados dos meses
-        anteriores COMPLETOS (sem incluir M):
-          - 3m: [M-3, M)  →  2026-05-01 a 2026-07-31
-          - 6m: [M-6, M)  →  2026-02-01 a 2026-07-31
-          - 12m: [M-12, M) → 2025-08-01 a 2026-07-31
+        A data de referência é o último dia com dados (padrão 2025-12-31). O mês
+        previsto M é o mês seguinte a ela, e as janelas usam os meses anteriores
+        COMPLETOS (sem incluir M). Com 2025-12-31, M = jan/2026:
+          - 3m: [M-3, M)  →  2025-10-01 a 2025-12-31
+          - 6m: [M-6, M)  →  2025-07-01 a 2025-12-31
+          - 12m: [M-12, M) → 2025-01-01 a 2025-12-31
 
         ⚠️  A lógica replica o .rolling(window=k).sum().shift(1)
             do notebook de preprocessamento — sem vazamento temporal.
         """
-        hoje = date.today()
-        # Primeiro dia do mês corrente (ex: 2026-08-01)
-        self.mes_corrente_start = date(hoje.year, hoje.month, 1)
+        ref = self.data_ref
+        # Primeiro dia do mês previsto: o mês seguinte à data de referência
+        self.mes_corrente_start = date(ref.year, ref.month, 1) + relativedelta(months=1)
 
-        self.ano = hoje.year
-        self.mes = hoje.month
+        self.ano = self.mes_corrente_start.year
+        self.mes = self.mes_corrente_start.month
         self.mes_sin = math.sin(2 * math.pi * self.mes / 12)
         self.mes_cos = math.cos(2 * math.pi * self.mes / 12)
 
@@ -314,7 +317,8 @@ class RiskPredictor:
           - risk_score_total
           - risk_score_normalized (0–100)
           - risk_level (Alto / Médio / Baixo)
-          - last_prediction_date
+          - last_prediction_date (a data de referência, não o dia da execução)
+          - last_prediction_run (quando o script rodou)
         """
         print("\nEscrevendo scores no Neo4j…")
 
@@ -337,10 +341,12 @@ class RiskPredictor:
                     s.risk_score_total      = item.risk_score_total,
                     s.risk_score_normalized = item.risk_score_normalized,
                     s.risk_level            = item.risk_level,
-                    s.last_prediction_date  = datetime()
+                    s.last_prediction_date  = date($data_ref),
+                    s.last_prediction_run   = datetime()
                 RETURN count(s) AS updated
                 """,
                 batch=batch,
+                data_ref=self.data_ref.isoformat(),
             )
             record = result.single()
             print(f"  {record['updated']} stops atualizados no Neo4j")
@@ -417,7 +423,22 @@ class RiskPredictor:
             self.close()
 
 
+DATA_REF_PADRAO = "2025-12-31"  # fim das bases do 1746 e do Fogo Cruzado
+
+
+def _ler_args(argv=None):
+    import argparse
+    ap = argparse.ArgumentParser(description="Calcula o risco preditivo e o risco total das paradas.")
+    ap.add_argument(
+        "--data-ref", default=DATA_REF_PADRAO, type=date.fromisoformat,
+        help=f"último dia com dados, AAAA-MM-DD (padrão {DATA_REF_PADRAO}); "
+             "as janelas de 3, 6 e 12 meses terminam nesse mês",
+    )
+    return ap.parse_args(argv)
+
+
 if __name__ == "__main__":
-    pred = RiskPredictor()
+    args = _ler_args()
+    pred = RiskPredictor(data_ref=args.data_ref)
     success = pred.run()
     sys.exit(0 if success else 1)

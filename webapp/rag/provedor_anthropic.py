@@ -27,6 +27,15 @@ def _limpar(mensagens: list[dict]) -> list[dict]:
     return saida
 
 
+def aceita_temperatura() -> bool:
+    """O SDK da Anthropic em uso aceita `temperature`? O 2.9 não tem o parâmetro em messages.create
+    (passá-lo dá TypeError); nesse caso RAG_TEMPERATURA vale só para o Gemini."""
+    import inspect
+
+    import anthropic
+    return "temperature" in inspect.signature(anthropic.resources.messages.Messages.create).parameters
+
+
 def chamar(system, mensagens, ferramentas, *, modelo, permitir_ferramentas, max_tokens) -> Resposta:
     import anthropic
 
@@ -36,6 +45,8 @@ def chamar(system, mensagens, ferramentas, *, modelo, permitir_ferramentas, max_
         system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
         messages=_limpar(mensagens),
     )
+    if config.RAG_TEMPERATURA is not None and aceita_temperatura():  # sem valor, vale o padrão da API
+        kwargs["temperature"] = config.RAG_TEMPERATURA
     if ferramentas:
         tools = [dict(f) for f in ferramentas]
         tools[-1]["cache_control"] = {"type": "ephemeral"}  # cacheia prompt + definições

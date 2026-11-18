@@ -1,0 +1,6 @@
+comparação,A,B,acerto A,acerto B,B − A (p.p.),IC 95% (p.p.),só A acerta,só B acerta
+Claude: antes × depois,claude · padrão,claude · ajustado,0.9809523809523808,0.9619047619047618,-1.9047619047619047,-6 a +0,1,0
+Gemini: antes × depois,gemini · padrão,gemini · ajustado,0.9904761904761904,0.9714285714285714,-1.9047619047619047,-9 a +3,1,0
+Padrão: Claude × Gemini,claude · padrão,gemini · padrão,0.9809523809523808,0.9904761904761904,0.9523809523809524,-2 a +5,0,0
+Ajustado: Claude × Gemini,claude · ajustado,gemini · ajustado,0.9619047619047618,0.9714285714285714,0.9523809523809524,-8 a +10,1,1
+Gemini ajustado × Claude padrão,claude · padrão,gemini · ajustado,0.9809523809523808,0.9714285714285714,-0.9523809523809521,-8 a +4,1,0

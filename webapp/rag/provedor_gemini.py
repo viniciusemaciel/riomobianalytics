@@ -93,11 +93,16 @@ def _erro(e) -> ErroLLM:
 def chamar(system, mensagens, ferramentas, *, modelo, permitir_ferramentas, max_tokens) -> Resposta:
     from google.genai import errors, types
 
+    nivel = getattr(types.ThinkingLevel, config.RAG_GEMINI_THINKING.upper(), None)
+    if nivel is None:
+        raise ErroLLM(f"nível de thinking desconhecido: {config.RAG_GEMINI_THINKING}")
     cfg = dict(
         system_instruction=system,
         max_output_tokens=max_tokens,
-        thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel.LOW),  # menos latência
+        thinking_config=types.ThinkingConfig(thinking_level=nivel),  # padrão LOW: menos latência
     )
+    if config.RAG_TEMPERATURA is not None:  # sem valor, vale o padrão da API
+        cfg["temperature"] = config.RAG_TEMPERATURA
     if ferramentas:
         cfg["tools"] = _declaracoes(ferramentas)
         # O agente executa as ferramentas; o SDK não deve chamá-las sozinho.

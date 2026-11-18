@@ -5,7 +5,7 @@ tipo: interno
 origem: páginas do aplicativo (webapp/views)
 url: https://github.com/viniciusemaciel/riomobianalytics
 periodo_coberto: versão atual do aplicativo
-atualizado_em: 2026-11-14
+atualizado_em: 2026-11-18
 tags: [como usar, mapa, camadas, filtros, busca, painel da parada, rede, simulador, página risco, assistente, protocolo 1746]
 ---
 
@@ -29,7 +29,7 @@ Ao clicar numa parada, o painel mostra:
 - um gráfico com os **tiroteios a até 500 m mês a mês** e o total no período (fonte: Fogo Cruzado);
 - a lista das reclamações vinculadas, por categoria.
 
-Os botões levam à página Rede a partir dessa parada ("Ver rede da parada"), abrem o assistente já com a parada como contexto ("Perguntar ao assistente") ou limpam a seleção.
+Os botões levam à página Rede a partir dessa parada ("Ver rede da parada"), abrem o assistente já com a parada como contexto ("Perguntar sobre esta parada") ou limpam a seleção.
 
 ## A página Rede
 

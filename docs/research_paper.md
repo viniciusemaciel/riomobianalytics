@@ -41,7 +41,7 @@ Desenvolver um sistema integrado que combine dados de GTFS do Rio de Janeiro com
 
 1. Modelar a rede de transporte público do Rio de Janeiro como um grafo, representando paradas, rotas e relacionamentos topológicos.
 
-2. Integrar dados de reclamações cidadãs com a rede de transporte através de análise de proximidade geográfica (raio de 100 metros).
+2. Integrar dados de reclamações cidadãs com a rede de transporte através de análise de proximidade geográfica (cada chamado é ligado à parada mais próxima, até 300 metros).
 
 3. Desenvolver uma metodologia de cálculo de risco que combine uma componente reativa (chamados 1746) com uma componente preditiva (modelo XGBoost treinado com dados do Fogo Cruzado).
 
@@ -127,7 +127,7 @@ Análise geoespacial permite consultas baseadas em localização:
 O sistema implementa um framework de risco em duas camadas:
 
 **Camada Reativa — Risco por Chamados (risk_score_atual)**:
-- Agregação de chamados 1746 abertos próximos à parada (raio de 100m)
+- Agregação de chamados 1746 ligados à parada (a mais próxima do chamado, até 300 m)
 - Peso semântico por categoria: Segurança Pública (1.5), Trânsito (0.8), Iluminação (0.6), Conservação (0.5), Limpeza (0.4), Outros (0.3)
 - Fórmula de saturação: `risk_sum / (risk_sum + 10)`, mapeando para [0, 1)
 - Somente chamados com status "Aberto" ou "Em Atendimento"

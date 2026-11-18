@@ -5,7 +5,7 @@ tipo: interno
 origem: webapp/rag/ (agent.py, tools.py, prompts.py, cypher_guard.py, provedores) e config.py
 url: https://github.com/viniciusemaciel/riomobianalytics
 periodo_coberto: estado do repositório em 14/11/2026
-atualizado_em: 2026-11-14
+atualizado_em: 2026-11-18
 tags: [assistente, RAG, ferramentas, Cypher, citações, guardrails, Claude, Gemini]
 ---
 
@@ -13,7 +13,7 @@ tags: [assistente, RAG, ferramentas, Cypher, citações, guardrails, Claude, Gem
 
 O assistente responde, em português, perguntas sobre as paradas, linhas e bairros do projeto. Ele **não responde de memória**: todo número, nome de parada, linha ou bairro vem de uma ferramenta chamada na própria conversa, e cada resultado recebe uma fonte numerada, citada no texto como [1], [2]. Se nenhuma ferramenta traz o dado, ele diz que não encontrou. As respostas são curtas (2 a 5 frases), e listas só quando há mais de 3 itens.
 
-Quando a pergunta trata uma parada ou um bairro como "perigoso" ou "seguro", ele lembra que o índice é uma previsão do modelo para comparar paradas, não um fato observado. Se há uma parada selecionada no mapa, "esta parada" se refere a ela (botão "Perguntar ao assistente").
+Quando a pergunta trata uma parada ou um bairro como "perigoso" ou "seguro", ele lembra que o índice é uma previsão do modelo para comparar paradas, não um fato observado. Se há uma parada selecionada no mapa, "esta parada" se refere a ela (botão "Perguntar sobre esta parada", no mapa e na página Rede).
 
 ## Ferramentas disponíveis
 

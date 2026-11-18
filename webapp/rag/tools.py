@@ -73,11 +73,6 @@ def _num(x, casas=1):
         return None
 
 
-def _cortar(df: pd.DataFrame, limite: int) -> dict:
-    return {"total": int(len(df)), "cortado": bool(len(df) > limite),
-            "linhas": df.head(limite).to_dict("records")}
-
-
 def _parada(r) -> dict:
     return {
         "stop_id": r.get("id"),
@@ -259,7 +254,7 @@ def tiroteios_bairros(ano_inicio=None, ano_fim=None, limite=10, busca: str | Non
 
 
 def resumo_reclamacoes() -> dict:
-    # Cypher próprio: get_complaints_summary lê o MongoDB, e o assistente só usa o Neo4j.
+    # Cypher próprio: o assistente só consulta o Neo4j (as reclamações brutas ficam no MongoDB).
     por_servico = query_neo4j("""
         MATCH (rec:Reclamacao)
         RETURN COALESCE(rec.servico, 'Sem categoria') AS categoria, count(rec) AS total,
@@ -468,7 +463,7 @@ DEFINICOES = [
     _tool("buscar_conhecimento",
           "Busca na documentação do projeto: o que é o projeto, como o índice e o modelo funcionam, de onde vêm os dados "
           "(GTFS, 1746, Fogo Cruzado), glossário, como usar o app e contexto de segurança pública (fontes externas "
-          "resumidas). Devolve até 2 trechos com tipo (interno ou externo) e origem. NÃO traz números atuais de paradas, "
+          "resumidas). Devolve até 3 trechos com tipo (interno ou externo) e origem. NÃO traz números atuais de paradas, "
           "bairros ou linhas: para isso use as outras ferramentas.",
           {"pergunta": {"type": "string", "description": "a dúvida reescrita em uma frase completa e autossuficiente, em português"}},
           ["pergunta"]),
@@ -522,8 +517,6 @@ _FUNCOES = {f.__name__: f for f in (
     estatisticas_gerais, paradas_mais_criticas, buscar_parada, resumo_bairros, detalhes_parada,
     reclamacoes_parada, tiroteios_parada, tiroteios_bairros, resumo_reclamacoes, metricas_linhas, rede_em_volta, consulta_cypher, buscar_conhecimento, o_que_posso_perguntar,
     mostrar_grafico, mostrar_tabela, mostrar_mapa)}
-
-VISUAIS = {"mostrar_grafico", "mostrar_tabela", "mostrar_mapa"}
 
 
 def executar(nome: str, argumentos: dict | None = None) -> dict:

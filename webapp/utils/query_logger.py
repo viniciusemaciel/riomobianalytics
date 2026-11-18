@@ -1,6 +1,5 @@
 import streamlit as st
 from datetime import datetime
-import json
 
 class QueryLogger:
     """Logger para capturar e armazenar queries executadas"""

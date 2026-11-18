@@ -12,7 +12,7 @@ from webapp.utils.data_fetchers import get_stop_features_for_model, get_stops_wi
 from webapp.utils.insights import FEATURE_LABELS, feature_importance, load_metadata, model_metrics
 from webapp.utils.state import get_selected
 from webapp.utils.theme import (
-    LINE, MUTED, NAVY, ORANGE, TEXT_2, fmt_dec, fmt_int, normalize_level, page_header,
+    MUTED, NAVY, ORANGE, TEXT_2, fmt_dec, fmt_int, page_header,
     plotly_layout, risk_badge,
 )
 

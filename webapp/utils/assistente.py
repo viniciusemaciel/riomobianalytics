@@ -88,9 +88,3 @@ def resumo_uso(uso: dict, rodadas: int, duracao_ms: int, provedor: str | None = 
             + (f"~US$ {custo_estimado(uso, provedor):.4f}" if custo_estimado(uso, provedor) else "plano gratuito")
             ).replace(",", ".")
 
-
-# Perguntas de exemplo: a lista completa, por tema, fica em webapp/rag/catalogo.py.
-from webapp.rag.catalogo import TEMA_PARADA as _TP, TEMAS as _TEMAS  # noqa: E402
-
-SUGESTOES_COM_PARADA = [p.texto for p in _TP.perguntas]
-SUGESTOES_GERAIS = [p.texto for p in _TEMAS[0].perguntas]

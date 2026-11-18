@@ -16,9 +16,9 @@ from webapp.utils.insights import MESES_ABREV, shootings_by_month
 from webapp.utils.mapa_base import RIO_CENTER, tiles_layer
 from webapp.utils.state import ask_about, get_selected, go as go_page, set_selected
 from webapp.utils.theme import (
-    CATEGORY_COLORS, LEVEL_COLORS, LEVELS, LINE, MUTED, NAVY, NO_LEVEL_COLOR,
-    ORANGE, empty_state, fmt_int, get_risk_color, legend_html, level_legend,
-    normalize_level, note, page_header, plotly_layout, risk_badge, selection_chip, stat_band,
+    CATEGORY_COLORS, LEVEL_COLORS, LEVELS, LINE, MUTED, NAVY,
+    ORANGE, empty_state, fmt_int, get_risk_color,
+    normalize_level, page_header, plotly_layout, risk_badge, stat_band,
 )
 
 LAYERS = ["Índice de risco", "Tiroteio", "Reclamações"]

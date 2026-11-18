@@ -14,7 +14,10 @@ for k, v in dict(RAG_MAX_RODADAS=6, RAG_MAX_HISTORICO=10, RAG_FALLBACK=False, AN
                  RAG_PRECO_ENTRADA_MTOK=0, RAG_PRECO_SAIDA_MTOK=0, RAG_PRECO_GEMINI_ENTRADA_MTOK=0,
                  RAG_PRECO_GEMINI_SAIDA_MTOK=0).items():
     setattr(cfg, k, v)
-sys.modules.setdefault("config", cfg)
+try:  # o config real, quando carrega; o falso só substitui se faltar (senão quebra os outros testes no pytest)
+    import config  # noqa: F401
+except Exception:
+    sys.modules["config"] = cfg
 
 from webapp.rag import agent, llm  # noqa: E402
 

@@ -63,9 +63,12 @@ RAG_MAX_PERGUNTAS_SESSAO = int(_secret("RAG_MAX_PERGUNTAS_SESSAO", default="30")
 # Busca na documentação (docs/rag): vetores gerados offline por scripts/11_indexar_rag.py
 RAG_MODEL_EMBEDDING = _secret("RAG_MODEL_EMBEDDING", default="gemini-embedding-001")
 RAG_EMBED_DIM = int(_secret("RAG_EMBED_DIM", default="768"))   # mesmo valor na indexação e na busca
-RAG_BUSCA_TOP_K = int(_secret("RAG_BUSCA_TOP_K", default="2"))  # trechos por busca
-RAG_LIMIAR_SIMILARIDADE = float(_secret("RAG_LIMIAR_SIMILARIDADE", default="0.60"))  # cosseno mínimo; valor inicial, ainda não calibrado
-RAG_MAX_RODADAS = 6        # rodadas de ferramenta por pergunta
+RAG_BUSCA_TOP_K = int(_secret("RAG_BUSCA_TOP_K", default="3"))  # trechos por busca (benchmark de 17/11)
+RAG_LIMIAR_SIMILARIDADE = float(_secret("RAG_LIMIAR_SIMILARIDADE", default="0.65"))  # cosseno mínimo (benchmark de 17/11: recall 100%, fora do escopo 100% bloqueado)
+RAG_MAX_RODADAS = int(_secret("RAG_MAX_RODADAS", default="6"))  # rodadas de ferramenta por pergunta
+_temp = _secret("RAG_TEMPERATURA")  # vazio = padrão da API de cada provedor
+RAG_TEMPERATURA = float(_temp) if _temp not in (None, "") else None
+RAG_GEMINI_THINKING = (_secret("RAG_GEMINI_THINKING", default="low") or "low").lower()  # minimal | low | medium | high
 RAG_MAX_HISTORICO = 10     # mensagens do histórico enviadas ao modelo
 RAG_PRECO_ENTRADA_MTOK = float(_secret("RAG_PRECO_ENTRADA_MTOK", default="0.10"))  # US$ por 1M tokens (estimativa)
 RAG_PRECO_SAIDA_MTOK = float(_secret("RAG_PRECO_SAIDA_MTOK", default="0.50"))
@@ -84,7 +87,10 @@ BAIRROS_LOOKUP_FILE = os.getenv("BAIRROS_FILE", str(DATA_DIR / "gtfs" / "Limite_
 
 # ---------------- Parâmetros do pipeline ----------------
 BATCH_SIZE = 1000
-MAX_DISTANCE_AFFECTS_METERS = 100
+# Regra de vinculação reclamação -> parada: cada chamado liga à parada mais próxima, até 300 m
+# (mediana de 97 m). O CSV do 1746 já traz a parada e a distância pré-calculadas, com corte em 300 m;
+# este valor só vale no caminho alternativo do script 04, para chamados sem parada pré-calculada.
+MAX_DISTANCE_AFFECTS_METERS = 300
 
 CATEGORIA_PESOS = {
     'Segurança Pública': 1.5,

@@ -5,7 +5,7 @@ tipo: interno
 origem: scripts 05 e 07, config.py, webapp/views/metodologia.py
 url: https://github.com/viniciusemaciel/riomobianalytics
 periodo_coberto: 2020–2025
-atualizado_em: 2026-11-14
+atualizado_em: 2026-11-18
 tags: [índice de risco, risk_score_normalized, níveis, normalização, reclamações, tiroteio, fórmula]
 ---
 
@@ -43,7 +43,7 @@ O intervalo entre o menor e o maior valor é dividido em **4 faixas de mesma lar
 
 ## A que data o índice se refere
 
-O índice guardado no banco é o da última execução do script de previsão, e a data dela fica em `Stop.last_prediction_date`. As variáveis do modelo usam as reclamações dos 3, 6 e 12 meses anteriores a essa data e o mês do ano (sazonalidade). Como os dados de reclamações e tiroteios vão até dezembro de 2025, o índice descreve o entorno das paradas com base no histórico de 2020 a 2025, não em ocorrências de hoje.
+O índice guardado no banco tem como data de referência 31/12/2025, o último dia das bases, gravada em `Stop.last_prediction_date`. O script de previsão usa essa data fixa, e não o dia em que roda: as variáveis do modelo usam as reclamações dos 3, 6 e 12 meses que terminam em dezembro de 2025 e o mês previsto, janeiro de 2026 (sazonalidade). Como os dados de reclamações e tiroteios vão até dezembro de 2025, o índice descreve o entorno das paradas com base no histórico de 2020 a 2025, não em ocorrências de hoje.
 
 ## Métricas de rota e custo ajustado por risco
 

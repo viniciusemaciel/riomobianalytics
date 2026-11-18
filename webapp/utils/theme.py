@@ -18,7 +18,6 @@ import streamlit as st
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 LOGO_MARK = ASSETS_DIR / "logo_mark.svg"
-LOGO_FULL = ASSETS_DIR / "logo_full.svg"
 FAVICON = ASSETS_DIR / "favicon.png"
 STYLE_CSS = ASSETS_DIR / "style.css"
 
@@ -64,12 +63,6 @@ CATEGORY_COLORS = {
     "Outros": "#C9D1DB",
 }
 
-# Compatibilidade com código antigo que ainda importe BRAND.
-BRAND = {
-    "navy": NAVY, "navy_soft": NAVY_SOFT, "coral": ORANGE, "cream": CREAM,
-    "high": LEVEL_COLORS["Alto"], "med_high": LEVEL_COLORS["Médio-Alto"],
-    "med_low": LEVEL_COLORS["Médio-Baixo"], "low": LEVEL_COLORS["Baixo"],
-}
 
 PLOT_FONT = dict(family="Geist, Inter, sans-serif", color=NAVY, size=12)
 
@@ -155,10 +148,6 @@ def risk_badge(level: str | None) -> str:
     return f"<span class='rm-badge' style='background:{bg};color:{fg}'>{html.escape(level)}</span>"
 
 
-# Nome antigo mantido para compatibilidade.
-render_risk_badge = risk_badge
-
-
 def legend_html(items: list[tuple[str, str]]) -> str:
     dots = "".join(
         f"<span class='rm-legend__item'><span class='rm-dot' style='background:{c}'></span>{html.escape(t)}</span>"
@@ -175,19 +164,6 @@ def empty_state(title: str, message: str) -> None:
     st.markdown(
         f"<div class='rm-empty'><div class='rm-empty__title'>{html.escape(title)}</div>"
         f"<div>{html.escape(message)}</div></div>",
-        unsafe_allow_html=True,
-    )
-
-
-render_empty_state = empty_state
-
-
-def selection_chip(name: str | None) -> None:
-    if not name:
-        return
-    st.markdown(
-        f"<span class='rm-chip'><span class='rm-chip__dot'></span>Parada selecionada "
-        f"<b>{html.escape(name)}</b></span>",
         unsafe_allow_html=True,
     )
 

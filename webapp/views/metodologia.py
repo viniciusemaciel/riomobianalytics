@@ -101,7 +101,8 @@ with _t1:
     section_title("1.2. Vinculação reclamação ↔ parada")
 
     st.markdown(
-        "Cada reclamação é atribuída à **parada de ônibus mais próxima** — o CSV "
+        "Cada reclamação é atribuída à **parada de ônibus mais próxima**, até 300 m "
+        "(mediana de 97 m) — o CSV "
         "`chamados_v2_com_stops_filtrado.csv` já traz esse vínculo pré-calculado no "
         "campo `stop_id_mais_proximo`. No banco de grafos, isso vira uma aresta "
         "`(Reclamacao)-[:AFFECTS]->(Stop)`, cuja propriedade `risk_contribution` é "

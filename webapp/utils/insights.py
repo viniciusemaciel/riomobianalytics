@@ -102,14 +102,6 @@ def feature_importance() -> list[tuple[str, str, float]]:
 
 
 @st.cache_data(show_spinner=False)
-def stop_history(stop_id: str) -> pd.DataFrame:
-    """Score mensal do modelo e meses com tiroteio para uma parada (validação 2024)."""
-    df = load_val_predictions()
-    out = df[df["stop_id"] == stop_id].sort_values("ano_mes")
-    return out[["ano_mes", "y_pred_prob_xgb", "y_true"]].reset_index(drop=True)
-
-
-@st.cache_data(show_spinner=False)
 def gtfs_segments() -> pd.DataFrame:
     """Trechos entre paradas consecutivas das viagens do GTFS (lon/lat das pontas)."""
     stops = pd.read_csv(GTFS / "stops.txt", dtype=str, usecols=["stop_id", "stop_lat", "stop_lon"])

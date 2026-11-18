@@ -84,12 +84,3 @@ def _display_logs(logs):
                 st.code(str(log.get("query", "")), language="json")
 
 
-def render_minimal_console():
-    """Versão inline minimalista (mantida por compatibilidade)."""
-    stats = QueryLogger.get_stats()
-    cols = st.columns([2, 1, 1, 1, 1])
-    cols[0].caption("Query stats")
-    cols[1].caption(f"Total: {stats['total_queries']}")
-    cols[2].caption(f"Neo4j: {stats['neo4j_queries']}")
-    cols[3].caption(f"MongoDB: {stats['mongo_queries']}")
-    cols[4].caption(f"Tempo: {stats['total_duration_ms']:.0f} ms")

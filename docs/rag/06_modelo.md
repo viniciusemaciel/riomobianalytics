@@ -5,7 +5,7 @@ tipo: interno
 origem: artifacts/metadata.json, notebooks 03 e 04, webapp/views/risco.py
 url: https://github.com/viniciusemaciel/riomobianalytics
 periodo_coberto: treino 2021–2023, validação 2024, teste 2025
-atualizado_em: 2026-11-14
+atualizado_em: 2026-11-18
 tags: [XGBoost, modelo, AUC, validação, features, importância, limiar, limitações]
 ---
 
@@ -41,7 +41,7 @@ Ordenando os pares parada e mês de 2024 pelo score do modelo e dividindo em dez
 
 ## O que mais pesa e o que isso significa
 
-Pelo ganho médio nas árvores, os grupos de variáveis pesam cerca de: **geografia 45%** (latitude 22,9% e longitude 22,5%), **tempo 27%**, **reclamações 17%** e **rede 10%** (valores do notebook). Ou seja, o modelo aprendeu sobretudo **onde** os tiroteios já aconteceram e em que épocas; as reclamações refinam, e mais as de 12 meses do que as de 3.
+Pelo ganho médio nas árvores, os grupos de variáveis pesam cerca de: **geografia 45%** (longitude 22,9% e latitude 22,5%), **tempo 27%**, **reclamações 17%** e **rede 10%** (valores do notebook). Ou seja, o modelo aprendeu sobretudo **onde** os tiroteios já aconteceram e em que épocas; as reclamações refinam, e mais as de 12 meses do que as de 3.
 
 Consequências para quem lê o índice: paradas vizinhas tendem a ter valores parecidos; a explicação de um índice alto é, em grande parte, a localização histórica; e o modelo não "enxerga" causas locais.
 

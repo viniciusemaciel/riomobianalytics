@@ -180,9 +180,9 @@
    "url": "https://www.data.rio",
    "periodo_coberto": "2020-01-02 a 2025-12-12 (chamados mantidos)",
    "acessado_em": "",
-   "palavras": 91,
-   "texto": "Cada chamado já traz, no CSV, o campo `stop_id_mais_proximo`: a parada mais próxima e a distância em metros. No grafo, vira uma relação `(Reclamacao)-[:AFFECTS]->(Stop)`, e **cada chamado liga a exatamente uma parada**.\n\nOs chamados já vêm ligados à parada mais próxima, sem limite de distância: a mediana é de 97 m, 51,4% estão a até 100 m, 85,8% a até 200 m e o máximo é de 300 m.\n\nDas 6.426 paradas, **4.908 (76,4%) têm pelo menos um chamado**; entre elas a mediana é de 3 chamados e o máximo, 431.",
-   "hash": "065f342af794a176"
+   "palavras": 102,
+   "texto": "Cada chamado já traz, no CSV, o campo `stop_id_mais_proximo`: a parada mais próxima e a distância em metros. No grafo, vira uma relação `(Reclamacao)-[:AFFECTS]->(Stop)`, e **cada chamado liga a exatamente uma parada**.\n\nA regra do projeto é ligar cada chamado à parada mais próxima, até 300 m. A mediana é de 97 m: 51,4% dos chamados estão a até 100 m, 86,5% a até 200 m e o mais distante está a 300 m. A ligação mostra proximidade, não causalidade.\n\nDas 6.426 paradas, **4.908 (76,4%) têm pelo menos um chamado**; entre elas a mediana é de 3 chamados e o máximo, 431.",
+   "hash": "a387491acaa963ed"
   },
   {
    "id": "03_fonte_1746#05",
@@ -376,9 +376,9 @@
    "url": "https://github.com/viniciusemaciel/riomobianalytics",
    "periodo_coberto": "2020–2025",
    "acessado_em": "",
-   "palavras": 76,
-   "texto": "O índice guardado no banco é o da última execução do script de previsão, e a data dela fica em `Stop.last_prediction_date`. As variáveis do modelo usam as reclamações dos 3, 6 e 12 meses anteriores a essa data e o mês do ano (sazonalidade). Como os dados de reclamações e tiroteios vão até dezembro de 2025, o índice descreve o entorno das paradas com base no histórico de 2020 a 2025, não em ocorrências de hoje.",
-   "hash": "529f8a23c1761803"
+   "palavras": 93,
+   "texto": "O índice guardado no banco tem como data de referência 31/12/2025, o último dia das bases, gravada em `Stop.last_prediction_date`. O script de previsão usa essa data fixa, e não o dia em que roda: as variáveis do modelo usam as reclamações dos 3, 6 e 12 meses que terminam em dezembro de 2025 e o mês previsto, janeiro de 2026 (sazonalidade). Como os dados de reclamações e tiroteios vão até dezembro de 2025, o índice descreve o entorno das paradas com base no histórico de 2020 a 2025, não em ocorrências de hoje.",
+   "hash": "70db2a0d8cad268c"
   },
   {
    "id": "05_metodologia_risco#07",
@@ -461,8 +461,8 @@
    "periodo_coberto": "treino 2021–2023, validação 2024, teste 2025",
    "acessado_em": "",
    "palavras": 91,
-   "texto": "Pelo ganho médio nas árvores, os grupos de variáveis pesam cerca de: **geografia 45%** (latitude 22,9% e longitude 22,5%), **tempo 27%**, **reclamações 17%** e **rede 10%** (valores do notebook). Ou seja, o modelo aprendeu sobretudo **onde** os tiroteios já aconteceram e em que épocas; as reclamações refinam, e mais as de 12 meses do que as de 3.\n\nConsequências para quem lê o índice: paradas vizinhas tendem a ter valores parecidos; a explicação de um índice alto é, em grande parte, a localização histórica; e o modelo não \"enxerga\" causas locais.",
-   "hash": "1426f046d80e499d"
+   "texto": "Pelo ganho médio nas árvores, os grupos de variáveis pesam cerca de: **geografia 45%** (longitude 22,9% e latitude 22,5%), **tempo 27%**, **reclamações 17%** e **rede 10%** (valores do notebook). Ou seja, o modelo aprendeu sobretudo **onde** os tiroteios já aconteceram e em que épocas; as reclamações refinam, e mais as de 12 meses do que as de 3.\n\nConsequências para quem lê o índice: paradas vizinhas tendem a ter valores parecidos; a explicação de um índice alto é, em grande parte, a localização histórica; e o modelo não \"enxerga\" causas locais.",
+   "hash": "31ed56b3169d9adc"
   },
   {
    "id": "06_modelo#06",
@@ -684,9 +684,9 @@
    "url": "https://github.com/viniciusemaciel/riomobianalytics",
    "periodo_coberto": "estado do repositório em 14/11/2026",
    "acessado_em": "",
-   "palavras": 123,
-   "texto": "O assistente responde, em português, perguntas sobre as paradas, linhas e bairros do projeto. Ele **não responde de memória**: todo número, nome de parada, linha ou bairro vem de uma ferramenta chamada na própria conversa, e cada resultado recebe uma fonte numerada, citada no texto como [1], [2]. Se nenhuma ferramenta traz o dado, ele diz que não encontrou. As respostas são curtas (2 a 5 frases), e listas só quando há mais de 3 itens.\n\nQuando a pergunta trata uma parada ou um bairro como \"perigoso\" ou \"seguro\", ele lembra que o índice é uma previsão do modelo para comparar paradas, não um fato observado. Se há uma parada selecionada no mapa, \"esta parada\" se refere a ela (botão \"Perguntar ao assistente\").",
-   "hash": "fa84d3181aad360a"
+   "palavras": 130,
+   "texto": "O assistente responde, em português, perguntas sobre as paradas, linhas e bairros do projeto. Ele **não responde de memória**: todo número, nome de parada, linha ou bairro vem de uma ferramenta chamada na própria conversa, e cada resultado recebe uma fonte numerada, citada no texto como [1], [2]. Se nenhuma ferramenta traz o dado, ele diz que não encontrou. As respostas são curtas (2 a 5 frases), e listas só quando há mais de 3 itens.\n\nQuando a pergunta trata uma parada ou um bairro como \"perigoso\" ou \"seguro\", ele lembra que o índice é uma previsão do modelo para comparar paradas, não um fato observado. Se há uma parada selecionada no mapa, \"esta parada\" se refere a ela (botão \"Perguntar sobre esta parada\", no mapa e na página Rede).",
+   "hash": "ec924ac24cec66f5"
   },
   {
    "id": "10_assistente#02",
@@ -1062,9 +1062,9 @@
    "url": "https://github.com/viniciusemaciel/riomobianalytics",
    "periodo_coberto": "versão atual do aplicativo",
    "acessado_em": "",
-   "palavras": 129,
-   "texto": "Ao clicar numa parada, o painel mostra:\n\n- o **índice de 0 a 100**, o nível e a posição relativa (\"entre os 10% mais altos\" ou \"maior que 60% das paradas\");\n- três números: reclamações vinculadas, linhas que passam na parada e paradas ligadas diretamente na rede;\n- a **composição do índice**, com duas barras de 0 a 100: a parte de reclamações e o score de tiroteio do modelo;\n- um gráfico com os **tiroteios a até 500 m mês a mês** e o total no período (fonte: Fogo Cruzado);\n- a lista das reclamações vinculadas, por categoria.\n\nOs botões levam à página Rede a partir dessa parada (\"Ver rede da parada\"), abrem o assistente já com a parada como contexto (\"Perguntar ao assistente\") ou limpam a seleção.",
-   "hash": "48705428619a651c"
+   "palavras": 130,
+   "texto": "Ao clicar numa parada, o painel mostra:\n\n- o **índice de 0 a 100**, o nível e a posição relativa (\"entre os 10% mais altos\" ou \"maior que 60% das paradas\");\n- três números: reclamações vinculadas, linhas que passam na parada e paradas ligadas diretamente na rede;\n- a **composição do índice**, com duas barras de 0 a 100: a parte de reclamações e o score de tiroteio do modelo;\n- um gráfico com os **tiroteios a até 500 m mês a mês** e o total no período (fonte: Fogo Cruzado);\n- a lista das reclamações vinculadas, por categoria.\n\nOs botões levam à página Rede a partir dessa parada (\"Ver rede da parada\"), abrem o assistente já com a parada como contexto (\"Perguntar sobre esta parada\") ou limpam a seleção.",
+   "hash": "d03e96d23cfd0209"
   },
   {
    "id": "14_guia_do_app#03",

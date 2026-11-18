@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import pandas as pd
-import numpy as np
 from neo4j import GraphDatabase
 from tqdm import tqdm
 import sys as _sys

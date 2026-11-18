@@ -43,75 +43,6 @@ def get_routes_with_metrics():
 
 
 @st.cache_data(ttl=300)
-def get_complaints_summary():
-    db = get_mongo_db()
-    start_time = time.time()
-
-    pipeline = [
-        {"$group": {
-            "_id": "$servico",
-            "count": {"$sum": 1},
-            "avg_peso": {"$avg": "$peso"}
-        }},
-        {"$sort": {"count": -1}}
-    ]
-
-    results = list(db.reclamacoes_1746_raw.aggregate(pipeline))
-
-    duration_ms = (time.time() - start_time) * 1000
-    QueryLogger.log_mongodb("aggregate", {"collection": "reclamacoes_1746_raw"}, None, duration_ms)
-
-    return pd.DataFrame(results).rename(columns={"_id": "category"})
-
-
-@st.cache_data(ttl=300)
-def get_network_graph_data(limit: int = 500):
-    """Retorna as primeiras `limit` conexões CONNECTS_TO do banco.
-
-    É uma amostra "arbitrária" da rede (ordem definida pelo Neo4j), útil
-    para dar uma visão geral da topologia. Para focar em uma região
-    específica, use `get_network_around_stop`.
-    """
-    query = f"""
-    MATCH (s1:Stop)-[c:CONNECTS_TO]->(s2:Stop)
-    RETURN s1.id as source, s2.id as target, s1.name as source_name,
-           s2.name as target_name, c.distance_meters as distance,
-           c.risk_adjusted_cost as cost,
-           COALESCE(s1.risk_score_total, 0) as source_risk,
-           COALESCE(s2.risk_score_total, 0) as target_risk
-    LIMIT {int(limit)}
-    """
-    data = query_neo4j(query)
-    return pd.DataFrame(data)
-
-
-@st.cache_data(ttl=300)
-def get_network_around_stop(stop_id: str, max_edges: int = 500):
-    """Retorna arestas CONNECTS_TO acessíveis a partir de `stop_id` via BFS.
-
-    Faz uma travessia em largura no Neo4j até coletar até `max_edges` arestas
-    únicas. Útil para gerar um subgrafo conectado, centrado em uma parada
-    específica, em vez da amostragem "aleatória" de `get_network_graph_data`.
-    """
-    query = """
-    MATCH path = (start:Stop {id: $stop_id})-[:CONNECTS_TO*1..6]-(other:Stop)
-    WITH relationships(path) AS rels
-    UNWIND rels AS r
-    WITH DISTINCT r
-    LIMIT $max_edges
-    WITH startNode(r) AS s1, endNode(r) AS s2, r
-    RETURN s1.id AS source, s2.id AS target,
-           s1.name AS source_name, s2.name AS target_name,
-           r.distance_meters AS distance,
-           r.risk_adjusted_cost AS cost,
-           COALESCE(s1.risk_score_total, 0) AS source_risk,
-           COALESCE(s2.risk_score_total, 0) AS target_risk
-    """
-    data = query_neo4j(query, {"stop_id": stop_id, "max_edges": int(max_edges)})
-    return pd.DataFrame(data)
-
-
-@st.cache_data(ttl=300)
 def get_system_stats():
     query = """
     MATCH (s:Stop)
@@ -137,30 +68,6 @@ def get_system_stats():
     """
     data = query_neo4j(query)
     return data[0] if data else {}
-
-
-@st.cache_data(ttl=300)
-def get_top_critical_stops(limit=10):
-    query = f"""
-    MATCH (s:Stop)
-    WHERE s.risk_score_total > 0
-    RETURN s.name as name,
-           COALESCE(s.risk_score_total, 0) as risk,
-           COALESCE(s.risk_score_atual, 0) as risk_atual,
-           COALESCE(s.risk_score_tiroteio, 0) as risk_tiroteio,
-           s.lat as lat, s.lon as lon,
-           s.risk_level as risk_level
-    ORDER BY s.risk_score_total DESC
-    LIMIT {limit}
-    """
-    data = query_neo4j(query)
-    df = pd.DataFrame(data)
-    if "risk_level" in df.columns:
-        df["risk_level"] = df["risk_level"].replace({
-            "Medio-Alto": "Médio-Alto",
-            "Medio-Baixo": "Médio-Baixo",
-        })
-    return df
 
 
 @st.cache_data(ttl=300)
@@ -259,41 +166,6 @@ def get_complaint_details(protocolo):
     """
     data = query_neo4j(query, {"protocolo": protocolo})
     return data[0] if data else None
-
-
-@st.cache_data(ttl=300)
-def get_nearby_complaints(lat, lon, radius_meters=500):
-    """Get complaints near a specific location"""
-    db = get_mongo_db()
-    start_time = time.time()
-
-    complaints = list(db.reclamacoes_1746_raw.find(
-        {
-            "localizacao": {
-                "$near": {
-                    "$geometry": {
-                        "type": "Point",
-                        "coordinates": [lon, lat]
-                    },
-                    "$maxDistance": radius_meters
-                }
-            }
-        },
-        {
-            "protocolo": 1,
-            "data_abertura": 1,
-            "servico": 1,
-            "bairro": 1,
-            "lat": 1,
-            "lon": 1,
-            "_id": 0
-        }
-    ).limit(50))
-
-    duration_ms = (time.time() - start_time) * 1000
-    QueryLogger.log_mongodb("geoNear", {"collection": "reclamacoes_1746_raw"}, None, duration_ms)
-
-    return pd.DataFrame(complaints)
 
 
 @st.cache_data(ttl=300)

@@ -11,6 +11,7 @@ __pycache__/
 .venv/
 venv/
 .ipynb_checkpoints/
+.pytest_cache/
 
 # Gerados pelos notebooks (recriáveis)
 data/model_dataset.parquet

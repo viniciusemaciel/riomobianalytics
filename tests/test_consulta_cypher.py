@@ -40,7 +40,9 @@ sys.modules["webapp.utils.db_connections"] = db
 for nome in ("webapp.utils.data_fetchers", "webapp.utils.insights"):
     sys.modules[nome] = types.ModuleType(nome)
 
-from webapp.rag import tools  # noqa: E402
+import importlib  # noqa: E402
+sys.modules.pop("webapp.rag.tools", None)  # outro teste pode ter carregado tools com o banco real
+tools = importlib.import_module("webapp.rag.tools")
 from webapp.rag.cypher_guard import CypherBloqueado, TIMEOUT_S  # noqa: E402
 
 
